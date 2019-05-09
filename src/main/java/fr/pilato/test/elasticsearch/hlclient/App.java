@@ -66,10 +66,10 @@ public class App {
             try {
                 client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
             } catch (ElasticsearchStatusException ignored) { }
-            client.index(new IndexRequest("test").type("_doc").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
             client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
             SearchResponse response = client.search(new SearchRequest("test"), RequestOptions.DEFAULT);
-            System.out.println("response.getHits().totalHits = " + response.getHits().totalHits);
+            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
         } catch (Exception e) {
             e.printStackTrace(System.err);
         }
