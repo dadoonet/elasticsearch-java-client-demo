@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 public class App {
     public static void main(String[] args) {
         createMapping();
-        // createData();
+        createData();
     }
 
 
