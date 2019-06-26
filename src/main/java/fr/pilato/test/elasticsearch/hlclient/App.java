@@ -29,14 +29,27 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 
 public class App {
     public static void main(String[] args) {
+        callInfo();
         createMapping();
         createData();
+    }
+
+    private static void callInfo() {
+        try (RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
+            MainResponse info = client.info(RequestOptions.DEFAULT);
+            String version = info.getVersion().getNumber();
+            System.out.println("version = " + version);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
     }
 
 
