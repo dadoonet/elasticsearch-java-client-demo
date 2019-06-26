@@ -37,8 +37,33 @@ import org.elasticsearch.common.xcontent.XContentType;
 public class App {
     public static void main(String[] args) {
         callInfo();
+        createIndex();
         createMapping();
         createData();
+    }
+
+    private static void createIndex() {
+        String settings = "{\n" +
+                "  \"mappings\": {\n" +
+                "      \"properties\": {\n" +
+                "        \"content\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "  }\n" +
+                "}\n";
+
+        try (RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
+            try {
+                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+            } catch (ElasticsearchStatusException ignored) { }
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("test");
+            createIndexRequest.source(settings, XContentType.JSON);
+            client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
     }
 
     private static void callInfo() {
