@@ -23,6 +23,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -40,6 +41,23 @@ public class App {
         createIndex();
         createMapping();
         createData();
+        exist();
+    }
+
+    private static void exist() {
+        try (RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
+            try {
+                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+            } catch (ElasticsearchStatusException ignored) { }
+            client.index(new IndexRequest("test").type("_doc").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+            boolean exists1 = client.exists(new GetRequest("test", "_doc", "1"), RequestOptions.DEFAULT);
+            boolean exists2 = client.exists(new GetRequest("test", "_doc", "2"), RequestOptions.DEFAULT);
+            System.out.println("exists1 = " + exists1);
+            System.out.println("exists2 = " + exists2);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
     }
 
     private static void createIndex() {
@@ -77,7 +95,6 @@ public class App {
         }
     }
 
-
     private static void createMapping() {
         try (RestHighLevelClient client = new RestHighLevelClient(
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
@@ -96,7 +113,6 @@ public class App {
             e.printStackTrace(System.err);
         }
     }
-
 
     private static void createData() {
         try (RestHighLevelClient client = new RestHighLevelClient(
