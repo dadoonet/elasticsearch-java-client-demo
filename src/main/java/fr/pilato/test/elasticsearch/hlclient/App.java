@@ -20,6 +20,7 @@
 package fr.pilato.test.elasticsearch.hlclient;
 
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -28,7 +29,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
@@ -42,6 +45,18 @@ public class App {
         createMapping();
         createData();
         exist();
+        nodeStatsWithLowLevelClient();
+    }
+
+    private static void nodeStatsWithLowLevelClient() {
+        try (RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
+            Response response = client.getLowLevelClient().performRequest(new Request("GET", "/_nodes/stats/thread_pool"));
+            String s = EntityUtils.toString(response.getEntity());
+            System.out.println("thread_pool = " + s);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
     }
 
     private static void exist() {
