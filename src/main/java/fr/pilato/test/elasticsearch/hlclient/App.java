@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -37,6 +38,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 public class App {
     public static void main(String[] args) {
@@ -45,7 +47,24 @@ public class App {
         createMapping();
         createData();
         exist();
+        getWithFilter();
         nodeStatsWithLowLevelClient();
+    }
+
+    private static void getWithFilter() {
+        try (RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
+            try {
+                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+            } catch (ElasticsearchStatusException ignored) { }
+            client.index(new IndexRequest("test").type("_doc").id("1").source("{\"foo\":\"bar\", \"application_id\": 6}", XContentType.JSON), RequestOptions.DEFAULT);
+            GetResponse getResponse = client.get(new GetRequest("test", "_doc", "1").fetchSourceContext(
+                    new FetchSourceContext(true, new String[]{"application_id"}, null)
+            ), RequestOptions.DEFAULT);
+            System.out.println("doc = " + getResponse);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
     }
 
     private static void nodeStatsWithLowLevelClient() {
