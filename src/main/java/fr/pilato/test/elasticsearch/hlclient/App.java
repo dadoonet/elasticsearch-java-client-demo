@@ -38,6 +38,8 @@ import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 public class App {
@@ -49,6 +51,7 @@ public class App {
         exist();
         getWithFilter();
         nodeStatsWithLowLevelClient();
+        searchData();
     }
 
     private static void getWithFilter() {
@@ -157,6 +160,25 @@ public class App {
             client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
             client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
             SearchResponse response = client.search(new SearchRequest("test"), RequestOptions.DEFAULT);
+            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
+    }
+
+    private static void searchData() {
+        try (RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
+            try {
+                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+            } catch (ElasticsearchStatusException ignored) { }
+            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+            client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
+            SearchResponse response = client.search(new SearchRequest("test").source(
+                    new SearchSourceBuilder().query(
+                            QueryBuilders.matchQuery("foo", "bar")
+                    )
+            ), RequestOptions.DEFAULT);
             System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
         } catch (Exception e) {
             e.printStackTrace(System.err);
