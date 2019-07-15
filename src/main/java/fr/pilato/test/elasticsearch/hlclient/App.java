@@ -180,6 +180,12 @@ public class App {
                     )
             ), RequestOptions.DEFAULT);
             System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits());
+            response = client.search(new SearchRequest("test").source(
+                    new SearchSourceBuilder().query(
+                            QueryBuilders.wrapperQuery("{\"match_all\":{}}")
+                    )
+            ), RequestOptions.DEFAULT);
+            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits());
         } catch (Exception e) {
             e.printStackTrace(System.err);
         }
