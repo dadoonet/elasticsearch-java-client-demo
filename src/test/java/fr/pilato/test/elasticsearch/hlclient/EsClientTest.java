@@ -41,20 +41,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.junit.jupiter.api.Test;
 
-public class App {
-    public static void main(String[] args) {
-        callInfo();
-        createIndex();
-        createMapping();
-        createData();
-        exist();
-        getWithFilter();
-        nodeStatsWithLowLevelClient();
-        searchData();
-    }
+class EsClientTest {
 
-    private static void getWithFilter() {
+    @Test
+    void getWithFilter() {
         try (RestHighLevelClient client = new RestHighLevelClient(
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
             try {
@@ -70,7 +62,8 @@ public class App {
         }
     }
 
-    private static void nodeStatsWithLowLevelClient() {
+    @Test
+    void nodeStatsWithLowLevelClient() {
         try (RestHighLevelClient client = new RestHighLevelClient(
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
             Response response = client.getLowLevelClient().performRequest(new Request("GET", "/_nodes/stats/thread_pool"));
@@ -81,7 +74,8 @@ public class App {
         }
     }
 
-    private static void exist() {
+    @Test
+    void exist() {
         try (RestHighLevelClient client = new RestHighLevelClient(
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
             try {
@@ -97,7 +91,8 @@ public class App {
         }
     }
 
-    private static void createIndex() {
+    @Test
+    void createIndex() {
         String settings = "{\n" +
                 "  \"mappings\": {\n" +
                 "      \"properties\": {\n" +
@@ -121,7 +116,8 @@ public class App {
         }
     }
 
-    private static void callInfo() {
+    @Test
+    void callInfo() {
         try (RestHighLevelClient client = new RestHighLevelClient(
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
             MainResponse info = client.info(RequestOptions.DEFAULT);
@@ -132,7 +128,8 @@ public class App {
         }
     }
 
-    private static void createMapping() {
+    @Test
+    void createMapping() {
         try (RestHighLevelClient client = new RestHighLevelClient(
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
             try {
@@ -151,7 +148,8 @@ public class App {
         }
     }
 
-    private static void createData() {
+    @Test
+    void createData() {
         try (RestHighLevelClient client = new RestHighLevelClient(
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
             try {
@@ -166,7 +164,8 @@ public class App {
         }
     }
 
-    private static void searchData() {
+    @Test
+    void searchData() {
         try (RestHighLevelClient client = new RestHighLevelClient(
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
             try {
