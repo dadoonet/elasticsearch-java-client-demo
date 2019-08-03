@@ -10,7 +10,7 @@
 
     <properties>
         <elasticsearch.version>7.3.0</elasticsearch.version>
-        <log4j.version>2.11.2</log4j.version>
+        <log4j.version>2.12.0</log4j.version>
         <junit.version>5.5.1</junit.version>
         <java.compiler.version>1.8</java.compiler.version>
     </properties>
