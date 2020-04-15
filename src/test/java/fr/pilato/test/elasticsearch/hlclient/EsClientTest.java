@@ -185,6 +185,11 @@ class EsClientTest {
                     )
             ), RequestOptions.DEFAULT);
             System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+            response = client.search(new SearchRequest("test").source(
+                    new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
+                    .trackScores(true)
+            ), RequestOptions.DEFAULT);
+            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
         } catch (Exception e) {
             e.printStackTrace(System.err);
         }
