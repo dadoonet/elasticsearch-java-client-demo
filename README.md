@@ -9,3 +9,11 @@ This repository contains then some examples that are coming from those
 discussions. It might be useful for anyone so I'm sharing the code here.
 
 Feel free to add your own examples if you wish.
+
+## Start a local cluster
+
+You can start Elasticsearch locally using `docker-compose`:
+
+```sh
+docker-compose up
+```
