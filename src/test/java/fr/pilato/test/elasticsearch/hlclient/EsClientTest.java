@@ -181,6 +181,12 @@ class EsClientTest {
             System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
             response = client.search(new SearchRequest("test").source(
                     new SearchSourceBuilder().query(
+                            QueryBuilders.termQuery("foo", "bar")
+                    )
+            ), RequestOptions.DEFAULT);
+            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+            response = client.search(new SearchRequest("test").source(
+                    new SearchSourceBuilder().query(
                             QueryBuilders.wrapperQuery("{\"match_all\":{}}")
                     )
             ), RequestOptions.DEFAULT);
