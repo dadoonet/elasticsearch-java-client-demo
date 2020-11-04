@@ -10,6 +10,7 @@
 
     <properties>
         <elasticsearch.version>7.9.3</elasticsearch.version>
+        <jackson.version>2.11.3</jackson.version>
         <log4j.version>2.13.3</log4j.version>
         <slf4j.version>1.7.30</slf4j.version>
         <junit.version>5.6.2</junit.version>
@@ -41,6 +42,16 @@
             <artifactId>elasticsearch-rest-high-level-client</artifactId>
             <version>${elasticsearch.version}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

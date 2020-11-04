@@ -19,6 +19,8 @@
 
 package fr.pilato.test.elasticsearch.hlclient;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -38,6 +40,7 @@ import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -194,6 +197,38 @@ class EsClientTest {
             response = client.search(new SearchRequest("test").source(
                     new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
                     .trackScores(true)
+            ), RequestOptions.DEFAULT);
+            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
+    }
+
+    @Test
+    void transformSqlQuery() {
+        try (RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
+            try {
+                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+            } catch (ElasticsearchStatusException ignored) { }
+            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+            client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
+
+            RestClient llClient = client.getLowLevelClient();
+            Request request = new Request("POST",  "/_sql/translate");
+            request.setJsonEntity("{\"query\":\"SELECT * FROM test WHERE foo='bar' limit 10\"}");
+            Response llResponse = llClient.performRequest(request);
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode tree = mapper.readTree(llResponse.getEntity().getContent());
+
+            int size = tree.get("size").asInt(10);
+            String query = tree.get("query").toString();
+
+            SearchResponse response = client.search(new SearchRequest("test").source(
+                    new SearchSourceBuilder().query(
+                            QueryBuilders.wrapperQuery(query)
+                    ).size(size)
             ), RequestOptions.DEFAULT);
             System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
         } catch (Exception e) {
