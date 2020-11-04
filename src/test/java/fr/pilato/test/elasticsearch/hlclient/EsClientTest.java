@@ -36,12 +36,25 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.TransformClient;
 import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.client.transform.GetTransformRequest;
+import org.elasticsearch.client.transform.GetTransformResponse;
+import org.elasticsearch.client.transform.PutTransformRequest;
+import org.elasticsearch.client.transform.transforms.DestConfig;
+import org.elasticsearch.client.transform.transforms.SourceConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.junit.jupiter.api.Test;
@@ -231,6 +244,43 @@ class EsClientTest {
                     ).size(size)
             ), RequestOptions.DEFAULT);
             System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
+    }
+
+    @Test
+    void transformApi() {
+        try (RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
+            try {
+                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+            } catch (ElasticsearchStatusException ignored) { }
+            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+            client.indices().refresh(new RefreshRequest("transform-source"), RequestOptions.DEFAULT);
+
+            String id = "test-get";
+
+            GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+                    TermsGroupSource.builder().setField("user_id").build()).build();
+            AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+            aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+            PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();
+
+            DestConfig destConfig = DestConfig.builder().setIndex("pivot-dest").build();
+
+            TransformConfig transform = TransformConfig.builder()
+                    .setId(id)
+                    .setSource(SourceConfig.builder().setIndex("test").setQuery(new MatchAllQueryBuilder()).build())
+                    .setDest(destConfig)
+                    .setPivotConfig(pivotConfig)
+                    .setDescription("this is a test transform")
+                    .build();
+
+            client.transform().putTransform(new PutTransformRequest(transform), RequestOptions.DEFAULT);
+
+            GetTransformResponse response = client.transform().getTransform(new GetTransformRequest(id), RequestOptions.DEFAULT);
+            System.out.println("response.getCount() = " + response.getCount());
         } catch (Exception e) {
             e.printStackTrace(System.err);
         }
