@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -59,6 +61,8 @@ import org.junit.jupiter.api.Test;
 
 class EsClientTest {
 
+    private static Logger logger = LogManager.getLogger();
+
     @Test
     void getWithFilter() {
         try (RestHighLevelClient client = new RestHighLevelClient(
@@ -70,9 +74,9 @@ class EsClientTest {
             GetResponse getResponse = client.get(new GetRequest("test", "1").fetchSourceContext(
                     new FetchSourceContext(true, new String[]{"application_id"}, null)
             ), RequestOptions.DEFAULT);
-            System.out.println("doc = " + getResponse);
+            logger.info("doc = {}", getResponse);
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 
@@ -82,9 +86,9 @@ class EsClientTest {
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
             Response response = client.getLowLevelClient().performRequest(new Request("GET", "/_nodes/stats/thread_pool"));
             String s = EntityUtils.toString(response.getEntity());
-            System.out.println("thread_pool = " + s);
+            logger.info("thread_pool = {}", s);
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 
@@ -98,10 +102,10 @@ class EsClientTest {
             client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
             boolean exists1 = client.exists(new GetRequest("test", "1"), RequestOptions.DEFAULT);
             boolean exists2 = client.exists(new GetRequest("test", "2"), RequestOptions.DEFAULT);
-            System.out.println("exists1 = " + exists1);
-            System.out.println("exists2 = " + exists2);
+            logger.info("exists1 = {}", exists1);
+            logger.info("exists2 = {}", exists2);
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 
@@ -126,7 +130,7 @@ class EsClientTest {
             createIndexRequest.source(settings, XContentType.JSON);
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 
@@ -136,9 +140,9 @@ class EsClientTest {
                 RestClient.builder(HttpHost.create("http://localhost:9200")))) {
             MainResponse info = client.info(RequestOptions.DEFAULT);
             String version = info.getVersion().getNumber();
-            System.out.println("version = " + version);
+            logger.info("version = {}", version);
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 
@@ -158,7 +162,7 @@ class EsClientTest {
                             "}", XContentType.JSON);
             client.indices().putMapping(request, RequestOptions.DEFAULT);
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 
@@ -172,9 +176,9 @@ class EsClientTest {
             client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
             client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
             SearchResponse response = client.search(new SearchRequest("test"), RequestOptions.DEFAULT);
-            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 
@@ -192,26 +196,26 @@ class EsClientTest {
                             QueryBuilders.matchQuery("foo", "bar")
                     )
             ), RequestOptions.DEFAULT);
-            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
             response = client.search(new SearchRequest("test").source(
                     new SearchSourceBuilder().query(
                             QueryBuilders.termQuery("foo", "bar")
                     )
             ), RequestOptions.DEFAULT);
-            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
             response = client.search(new SearchRequest("test").source(
                     new SearchSourceBuilder().query(
                             QueryBuilders.wrapperQuery("{\"match_all\":{}}")
                     )
             ), RequestOptions.DEFAULT);
-            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
             response = client.search(new SearchRequest("test").source(
                     new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
                     .trackScores(true)
             ), RequestOptions.DEFAULT);
-            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 
@@ -241,9 +245,9 @@ class EsClientTest {
                             QueryBuilders.wrapperQuery(query)
                     ).size(size)
             ), RequestOptions.DEFAULT);
-            System.out.println("response.getHits().totalHits = " + response.getHits().getTotalHits().value);
+            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 
@@ -278,9 +282,9 @@ class EsClientTest {
             client.transform().putTransform(new PutTransformRequest(transform), RequestOptions.DEFAULT);
 
             GetTransformResponse response = client.transform().getTransform(new GetTransformRequest(id), RequestOptions.DEFAULT);
-            System.out.println("response.getCount() = " + response.getCount());
+            logger.info("response.getCount() = {}", response.getCount());
         } catch (Exception e) {
-            e.printStackTrace(System.err);
+            logger.error("Error while calling elasticsearch", e);
         }
     }
 }
