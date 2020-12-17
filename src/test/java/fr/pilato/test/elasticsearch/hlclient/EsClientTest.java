@@ -57,60 +57,96 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.testcontainers.elasticsearch.ElasticsearchContainer;
+import org.testcontainers.utility.DockerImageName;
+
+import java.io.IOException;
+
+import static org.junit.Assume.assumeNotNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 class EsClientTest {
 
-    private static Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
+    private static final ElasticsearchContainer container = new ElasticsearchContainer(
+            DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
+                    .withTag("7.10.1"));
+    private static RestHighLevelClient client = null;
 
-    @Test
-    void getWithFilter() {
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            try {
-                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
-            } catch (ElasticsearchStatusException ignored) { }
-            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\", \"application_id\": 6}", XContentType.JSON), RequestOptions.DEFAULT);
-            GetResponse getResponse = client.get(new GetRequest("test", "1").fetchSourceContext(
-                    new FetchSourceContext(true, new String[]{"application_id"}, null)
-            ), RequestOptions.DEFAULT);
-            logger.info("doc = {}", getResponse);
+    @BeforeAll
+    static void startOptionallyTestContainers() {
+        client = getClient("http://localhost:9200");
+        if (client == null) {
+            logger.info("Starting testcontainers.");
+            // Start the container. This step might take some time...
+            container.start();
+            client = getClient(container.getHttpHostAddress());
+            assumeNotNull(client);
+        }
+    }
+
+    @AfterAll
+    static void stopOptionallyTestContainers() {
+        if (container.isRunning()) {
+            container.close();
+        }
+    }
+
+    @AfterAll
+    static void elasticsearchClient() throws IOException {
+        if (client != null) {
+            client.close();
+        }
+    }
+
+    static private RestHighLevelClient getClient(String elasticsearchServiceAddress) {
+        try {
+            RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(HttpHost.create(elasticsearchServiceAddress)));
+            MainResponse info = client.info(RequestOptions.DEFAULT);
+            logger.info("Connected to a cluster running version {} at {}.", info.getVersion().getNumber(), elasticsearchServiceAddress);
+            return client;
         } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
+            logger.info("No cluster is running yet at {}.", elasticsearchServiceAddress);
+            return null;
         }
     }
 
     @Test
-    void nodeStatsWithLowLevelClient() {
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            Response response = client.getLowLevelClient().performRequest(new Request("GET", "/_nodes/stats/thread_pool"));
-            String s = EntityUtils.toString(response.getEntity());
-            logger.info("thread_pool = {}", s);
-        } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
-        }
+    void getWithFilter() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\", \"application_id\": 6}", XContentType.JSON), RequestOptions.DEFAULT);
+        GetResponse getResponse = client.get(new GetRequest("test", "1").fetchSourceContext(
+                new FetchSourceContext(true, new String[]{"application_id"}, null)
+        ), RequestOptions.DEFAULT);
+        logger.info("doc = {}", getResponse);
     }
 
     @Test
-    void exist() {
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            try {
-                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
-            } catch (ElasticsearchStatusException ignored) { }
-            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
-            boolean exists1 = client.exists(new GetRequest("test", "1"), RequestOptions.DEFAULT);
-            boolean exists2 = client.exists(new GetRequest("test", "2"), RequestOptions.DEFAULT);
-            logger.info("exists1 = {}", exists1);
-            logger.info("exists2 = {}", exists2);
-        } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
-        }
+    void nodeStatsWithLowLevelClient() throws IOException {
+        Response response = client.getLowLevelClient().performRequest(new Request("GET", "/_nodes/stats/thread_pool"));
+        String s = EntityUtils.toString(response.getEntity());
+        logger.info("thread_pool = {}", s);
     }
 
     @Test
-    void createIndex() {
+    void exist() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+        boolean exists1 = client.exists(new GetRequest("test", "1"), RequestOptions.DEFAULT);
+        boolean exists2 = client.exists(new GetRequest("test", "2"), RequestOptions.DEFAULT);
+        logger.info("exists1 = {}", exists1);
+        logger.info("exists2 = {}", exists2);
+    }
+
+    @Test
+    void createIndex() throws IOException {
         String settings = "{\n" +
                 "  \"mappings\": {\n" +
                 "      \"properties\": {\n" +
@@ -121,170 +157,140 @@ class EsClientTest {
                 "  }\n" +
                 "}\n";
 
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            try {
-                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
-            } catch (ElasticsearchStatusException ignored) { }
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("test");
-            createIndexRequest.source(settings, XContentType.JSON);
-            client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-        } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
-        }
+        try {
+            client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("test");
+        createIndexRequest.source(settings, XContentType.JSON);
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
     }
 
     @Test
-    void callInfo() {
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            MainResponse info = client.info(RequestOptions.DEFAULT);
-            String version = info.getVersion().getNumber();
-            logger.info("version = {}", version);
-        } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
-        }
+    void callInfo() throws IOException {
+        MainResponse info = client.info(RequestOptions.DEFAULT);
+        String version = info.getVersion().getNumber();
+        logger.info("version = {}", version);
     }
 
     @Test
-    void createMapping() {
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            try {
-                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
-            } catch (ElasticsearchStatusException ignored) { }
-            client.indices().create(new CreateIndexRequest("test"), RequestOptions.DEFAULT);
-            PutMappingRequest request =
-                    new PutMappingRequest("test").source("{\n" +
-                            "    \"properties\":{\n" +
-                            "        \"foo\":{\"type\":\"text\"}\n" +
-                            "    }\n" +
-                            "}", XContentType.JSON);
-            client.indices().putMapping(request, RequestOptions.DEFAULT);
-        } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
-        }
+    void createMapping() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        client.indices().create(new CreateIndexRequest("test"), RequestOptions.DEFAULT);
+        PutMappingRequest request =
+                new PutMappingRequest("test").source("{\n" +
+                        "    \"properties\":{\n" +
+                        "        \"foo\":{\"type\":\"text\"}\n" +
+                        "    }\n" +
+                        "}", XContentType.JSON);
+        client.indices().putMapping(request, RequestOptions.DEFAULT);
     }
 
     @Test
-    void createData() {
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            try {
-                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
-            } catch (ElasticsearchStatusException ignored) { }
-            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
-            client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
-            SearchResponse response = client.search(new SearchRequest("test"), RequestOptions.DEFAULT);
-            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
-        } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
-        }
+    void createData() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+        client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
+        SearchResponse response = client.search(new SearchRequest("test"), RequestOptions.DEFAULT);
+        logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
     }
 
     @Test
-    void searchData() {
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            try {
-                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
-            } catch (ElasticsearchStatusException ignored) { }
-            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
-            client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
-            SearchResponse response = client.search(new SearchRequest("test").source(
-                    new SearchSourceBuilder().query(
-                            QueryBuilders.matchQuery("foo", "bar")
-                    )
-            ), RequestOptions.DEFAULT);
-            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
-            response = client.search(new SearchRequest("test").source(
-                    new SearchSourceBuilder().query(
-                            QueryBuilders.termQuery("foo", "bar")
-                    )
-            ), RequestOptions.DEFAULT);
-            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
-            response = client.search(new SearchRequest("test").source(
-                    new SearchSourceBuilder().query(
-                            QueryBuilders.wrapperQuery("{\"match_all\":{}}")
-                    )
-            ), RequestOptions.DEFAULT);
-            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
-            response = client.search(new SearchRequest("test").source(
-                    new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
-                    .trackScores(true)
-            ), RequestOptions.DEFAULT);
-            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
-        } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
-        }
+    void searchData() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+        client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
+        SearchResponse response = client.search(new SearchRequest("test").source(
+                new SearchSourceBuilder().query(
+                        QueryBuilders.matchQuery("foo", "bar")
+                )
+        ), RequestOptions.DEFAULT);
+        logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
+        response = client.search(new SearchRequest("test").source(
+                new SearchSourceBuilder().query(
+                        QueryBuilders.termQuery("foo", "bar")
+                )
+        ), RequestOptions.DEFAULT);
+        logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
+        response = client.search(new SearchRequest("test").source(
+                new SearchSourceBuilder().query(
+                        QueryBuilders.wrapperQuery("{\"match_all\":{}}")
+                )
+        ), RequestOptions.DEFAULT);
+        logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
+        response = client.search(new SearchRequest("test").source(
+                new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
+                .trackScores(true)
+        ), RequestOptions.DEFAULT);
+        logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
     }
 
     @Test
-    void transformSqlQuery() {
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            try {
-                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
-            } catch (ElasticsearchStatusException ignored) { }
-            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
-            client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
+    void transformSqlQuery() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+        client.indices().refresh(new RefreshRequest("test"), RequestOptions.DEFAULT);
 
-            RestClient llClient = client.getLowLevelClient();
-            Request request = new Request("POST",  "/_sql/translate");
-            request.setJsonEntity("{\"query\":\"SELECT * FROM test WHERE foo='bar' limit 10\"}");
-            Response llResponse = llClient.performRequest(request);
+        RestClient llClient = client.getLowLevelClient();
+        Request request = new Request("POST",  "/_sql/translate");
+        request.setJsonEntity("{\"query\":\"SELECT * FROM test WHERE foo='bar' limit 10\"}");
+        Response llResponse = llClient.performRequest(request);
 
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode tree = mapper.readTree(llResponse.getEntity().getContent());
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode tree = mapper.readTree(llResponse.getEntity().getContent());
 
-            int size = tree.get("size").asInt(10);
-            String query = tree.get("query").toString();
+        int size = tree.get("size").asInt(10);
+        String query = tree.get("query").toString();
 
-            SearchResponse response = client.search(new SearchRequest("test").source(
-                    new SearchSourceBuilder().query(
-                            QueryBuilders.wrapperQuery(query)
-                    ).size(size)
-            ), RequestOptions.DEFAULT);
-            logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
-        } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
-        }
+        SearchResponse response = client.search(new SearchRequest("test").source(
+                new SearchSourceBuilder().query(
+                        QueryBuilders.wrapperQuery(query)
+                ).size(size)
+        ), RequestOptions.DEFAULT);
+        logger.info("response.getHits().totalHits = {}", response.getHits().getTotalHits().value);
     }
 
     @Test
-    void transformApi() {
-        try (RestHighLevelClient client = new RestHighLevelClient(
-                RestClient.builder(HttpHost.create("http://localhost:9200")))) {
-            try {
-                client.indices().delete(new DeleteIndexRequest("test"), RequestOptions.DEFAULT);
-            } catch (ElasticsearchStatusException ignored) { }
-            client.index(new IndexRequest("test").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
-            client.indices().refresh(new RefreshRequest("transform-source"), RequestOptions.DEFAULT);
+    void transformApi() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("transform-source"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        client.index(new IndexRequest("transform-source").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+        client.indices().refresh(new RefreshRequest("transform-source"), RequestOptions.DEFAULT);
 
-            String id = "test-get";
+        String id = "test-get";
 
-            GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
-                    TermsGroupSource.builder().setField("user_id").build()).build();
-            AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
-            aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
-            PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+                TermsGroupSource.builder().setField("user_id").build()).build();
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();
 
-            DestConfig destConfig = DestConfig.builder().setIndex("pivot-dest").build();
+        DestConfig destConfig = DestConfig.builder().setIndex("pivot-dest").build();
 
-            TransformConfig transform = TransformConfig.builder()
-                    .setId(id)
-                    .setSource(SourceConfig.builder().setIndex("test").setQuery(new MatchAllQueryBuilder()).build())
-                    .setDest(destConfig)
-                    .setPivotConfig(pivotConfig)
-                    .setDescription("this is a test transform")
-                    .build();
+        TransformConfig transform = TransformConfig.builder()
+                .setId(id)
+                .setSource(SourceConfig.builder().setIndex("transform-source").setQuery(new MatchAllQueryBuilder()).build())
+                .setDest(destConfig)
+                .setPivotConfig(pivotConfig)
+                .setDescription("this is a test transform")
+                .build();
 
-            client.transform().putTransform(new PutTransformRequest(transform), RequestOptions.DEFAULT);
+        client.transform().putTransform(new PutTransformRequest(transform), RequestOptions.DEFAULT);
 
+        // Todo fix it with a coming version of elasticsearch
+        // Bug reported at https://github.com/elastic/elasticsearch/issues/64602
+        try {
             GetTransformResponse response = client.transform().getTransform(new GetTransformRequest(id), RequestOptions.DEFAULT);
             logger.info("response.getCount() = {}", response.getCount());
-        } catch (Exception e) {
-            logger.error("Error while calling elasticsearch", e);
-        }
+            fail("Failing this test indicates that https://github.com/elastic/elasticsearch/issues/64602 has been fixed. The code should be reviewed");
+        } catch (IOException ignored) { }
     }
 }

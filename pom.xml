@@ -14,6 +14,7 @@
         <log4j.version>2.13.3</log4j.version>
         <slf4j.version>1.7.30</slf4j.version>
         <junit.version>5.6.2</junit.version>
+        <testcontainers.version>1.15.1</testcontainers.version>
         <java.compiler.version>1.8</java.compiler.version>
     </properties>
 
@@ -93,6 +94,15 @@
             <version>${log4j.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- TestContainers -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
 </project>
