@@ -17,3 +17,10 @@ You can start Elasticsearch locally using `docker-compose`:
 ```sh
 docker-compose up
 ```
+
+## Using embedded TestContainers Elasticsearch module
+
+If a local cluster is not running at `http://localhost:9200`, we will start automatically a Docker image using
+the [Elasticsearch module for TestContainers](https://www.testcontainers.org/modules/elasticsearch/).
+
+It requires to have Docker running.
