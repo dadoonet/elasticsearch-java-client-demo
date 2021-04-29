@@ -50,13 +50,17 @@ import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -66,6 +70,7 @@ import org.testcontainers.utility.DockerImageName;
 import java.io.IOException;
 
 import static org.junit.Assume.assumeNotNull;
+import static org.junit.Assume.assumeThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class EsClientTest {
@@ -73,7 +78,7 @@ class EsClientTest {
     private static final Logger logger = LogManager.getLogger();
     private static final ElasticsearchContainer container = new ElasticsearchContainer(
             DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
-                    .withTag("7.10.1"));
+                    .withTag("7.12.1"));
     private static RestHighLevelClient client = null;
 
     @BeforeAll
@@ -292,5 +297,23 @@ class EsClientTest {
             logger.info("response.getCount() = {}", response.getCount());
             fail("Failing this test indicates that https://github.com/elastic/elasticsearch/issues/64602 has been fixed. The code should be reviewed");
         } catch (IOException ignored) { }
+    }
+
+    @Test
+    void highlight() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("highlight"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) {
+        }
+        client.index(new IndexRequest("highlight").source("{\"foo\":\"bar baz\"}", XContentType.JSON), RequestOptions.DEFAULT);
+        client.indices().refresh(new RefreshRequest("highlight"), RequestOptions.DEFAULT);
+        SearchResponse response = client.search(new SearchRequest("highlight").source(
+                new SearchSourceBuilder()
+                        .query(QueryBuilders.matchQuery("foo", "bar"))
+                        .highlighter(new HighlightBuilder().field("foo").maxAnalyzedOffset(10)
+                        )
+        ), RequestOptions.DEFAULT);
+        HighlightField highlightField = response.getHits().getAt(0).getHighlightFields().get("foo");
+        logger.info("Highlights: {}", (Object) highlightField.fragments());
     }
 }
