@@ -55,8 +55,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -315,5 +317,21 @@ class EsClientTest {
         ), RequestOptions.DEFAULT);
         HighlightField highlightField = response.getHits().getAt(0).getHighlightFields().get("foo");
         logger.info("Highlights: {}", (Object) highlightField.fragments());
+    }
+
+    @Test
+    void termsAgg() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("termsagg"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        client.index(new IndexRequest("termsagg").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("termsagg").id("2").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
+        client.indices().refresh(new RefreshRequest("termsagg"), RequestOptions.DEFAULT);
+        SearchResponse response = client.search(new SearchRequest("termsagg").source(new SearchSourceBuilder()
+                .size(0)
+                .aggregation(AggregationBuilders.terms("top10foo").field("foo.keyword").size(10))
+        ), RequestOptions.DEFAULT);
+        Terms top10foo = response.getAggregations().get("top10foo");
+        logger.info("top10foo = {}", top10foo);
     }
 }
