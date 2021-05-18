@@ -332,6 +332,8 @@ class EsClientTest {
                 .aggregation(AggregationBuilders.terms("top10foo").field("foo.keyword").size(10))
         ), RequestOptions.DEFAULT);
         Terms top10foo = response.getAggregations().get("top10foo");
-        logger.info("top10foo = {}", top10foo);
+        for (Terms.Bucket bucket : top10foo.getBuckets()) {
+            logger.info("top10foo bucket = {}, count = {}", bucket.getKeyAsString(), bucket.getDocCount());
+        }
     }
 }
