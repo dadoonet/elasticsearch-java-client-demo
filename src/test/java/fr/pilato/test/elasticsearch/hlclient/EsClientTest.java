@@ -93,7 +93,7 @@ class EsClientTest {
             // Start the container. This step might take some time...
             container = new ElasticsearchContainer(
                     DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
-                            .withTag("7.12.1"))
+                            .withTag("7.13.0"))
                     .withPassword(PASSWORD);
             container.start();
             client = getClient(container.getHttpHostAddress());
