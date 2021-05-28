@@ -22,6 +22,10 @@ package fr.pilato.test.elasticsearch.hlclient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,12 +54,9 @@ import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -72,16 +73,14 @@ import org.testcontainers.utility.DockerImageName;
 import java.io.IOException;
 
 import static org.junit.Assume.assumeNotNull;
-import static org.junit.Assume.assumeThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class EsClientTest {
 
     private static final Logger logger = LogManager.getLogger();
-    private static final ElasticsearchContainer container = new ElasticsearchContainer(
-            DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
-                    .withTag("7.12.1"));
+    private static ElasticsearchContainer container;
     private static RestHighLevelClient client = null;
+    private static final String PASSWORD = "changeme";
 
     @BeforeAll
     static void startOptionallyTestContainers() {
@@ -89,6 +88,10 @@ class EsClientTest {
         if (client == null) {
             logger.info("Starting testcontainers.");
             // Start the container. This step might take some time...
+            container = new ElasticsearchContainer(
+                    DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
+                            .withTag("7.12.1"))
+                    .withPassword(PASSWORD);
             container.start();
             client = getClient(container.getHttpHostAddress());
             assumeNotNull(client);
@@ -97,9 +100,10 @@ class EsClientTest {
 
     @AfterAll
     static void stopOptionallyTestContainers() {
-        if (container.isRunning()) {
+        if (container != null && container.isRunning()) {
             container.close();
         }
+        container = null;
     }
 
     @AfterAll
@@ -111,7 +115,14 @@ class EsClientTest {
 
     static private RestHighLevelClient getClient(String elasticsearchServiceAddress) {
         try {
-            RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(HttpHost.create(elasticsearchServiceAddress)));
+            final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(AuthScope.ANY,
+                    new UsernamePasswordCredentials("elastic", PASSWORD));
+
+            RestHighLevelClient client = new RestHighLevelClient(
+                    RestClient.builder(HttpHost.create(elasticsearchServiceAddress))
+                            .setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider))
+                    );
             MainResponse info = client.info(RequestOptions.DEFAULT);
             logger.info("Connected to a cluster running version {} at {}.", info.getVersion().getNumber(), elasticsearchServiceAddress);
             return client;
