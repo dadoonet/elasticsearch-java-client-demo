@@ -32,6 +32,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -346,5 +349,44 @@ class EsClientTest {
         for (Terms.Bucket bucket : top10foo.getBuckets()) {
             logger.info("top10foo bucket = {}, count = {}", bucket.getKeyAsString(), bucket.getDocCount());
         }
+    }
+
+    @Test
+    void bulkProcessor() throws IOException {
+        int size = 1000;
+        try {
+            client.indices().delete(new DeleteIndexRequest("bulk"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException | IOException ignored) { }
+        BulkProcessor bulkProcessor = BulkProcessor.builder(
+                (request, bulkListener) -> client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+                new BulkProcessor.Listener() {
+                    @Override
+                    public void beforeBulk(long executionId, BulkRequest request) {
+                        logger.debug("going to execute bulk of {} requests", request.numberOfActions());
+                    }
+
+                    @Override
+                    public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                        logger.debug("bulk executed {} failures", response.hasFailures() ? "with" : "without");
+                    }
+
+                    @Override
+                    public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                        logger.warn("error while executing bulk", failure);
+                    }
+                })
+                .setBulkActions(10)
+                .build();
+
+        for (int i = 0; i < size; i++) {
+            bulkProcessor.add(new IndexRequest("bulk").source("{\"foo\":\"bar\"}", XContentType.JSON));
+        }
+
+        // Make sure to close (and flush) the bulk processor before exiting
+        bulkProcessor.close();
+
+        client.indices().refresh(new RefreshRequest("bulk"), RequestOptions.DEFAULT);
+        SearchResponse response = client.search(new SearchRequest("bulk").source(new SearchSourceBuilder().size(0)), RequestOptions.DEFAULT);
+        logger.info("Indexed {} documents. Found {} documents.", size, response.getHits().getTotalHits().value);
     }
 }
