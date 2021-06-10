@@ -60,6 +60,7 @@ import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -389,4 +390,21 @@ class EsClientTest {
         SearchResponse response = client.search(new SearchRequest("bulk").source(new SearchSourceBuilder().size(0)), RequestOptions.DEFAULT);
         logger.info("Indexed {} documents. Found {} documents.", size, response.getHits().getTotalHits().value);
     }
+
+    @Test
+    void rangeQuery() throws IOException {
+        try {
+            client.indices().delete(new DeleteIndexRequest("rangequery"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        client.index(new IndexRequest("rangequery").id("1").source("{\"foo\":1}", XContentType.JSON), RequestOptions.DEFAULT);
+        client.index(new IndexRequest("rangequery").id("2").source("{\"foo\":2}", XContentType.JSON), RequestOptions.DEFAULT);
+        client.indices().refresh(new RefreshRequest("rangequery"), RequestOptions.DEFAULT);
+        SearchResponse response = client.search(new SearchRequest("rangequery").source(new SearchSourceBuilder()
+                .query(QueryBuilders.rangeQuery("foo").from(0).to(1))
+        ), RequestOptions.DEFAULT);
+        for (SearchHit hit : response.getHits()) {
+            logger.info("hit _id = {}, _source = {}", hit.getId(), hit.getSourceAsString());
+        }
+    }
+
 }
