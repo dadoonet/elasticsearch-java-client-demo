@@ -5,16 +5,16 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>fr.pilato.test.elasticsearch</groupId>
-    <artifactId>hlclient</artifactId>
+    <artifactId>elasticsearch-client-tests</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <elasticsearch.version>7.15.2</elasticsearch.version>
-        <jackson.version>2.11.3</jackson.version>
-        <log4j.version>2.13.3</log4j.version>
-        <slf4j.version>1.7.30</slf4j.version>
-        <junit.version>5.6.2</junit.version>
-        <testcontainers.version>1.15.1</testcontainers.version>
+        <elasticsearch.version>7.17.10</elasticsearch.version>
+        <jackson.version>2.15.0</jackson.version>
+        <log4j.version>2.20.0</log4j.version>
+        <slf4j.version>2.0.7</slf4j.version>
+        <junit.version>5.9.3</junit.version>
+        <testcontainers.version>1.18.1</testcontainers.version>
         <java.compiler.version>1.8</java.compiler.version>
     </properties>
 
@@ -23,7 +23,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.11.0</version>
                 <configuration>
                     <source>${java.compiler.version}</source>
                     <target>${java.compiler.version}</target>
@@ -78,9 +78,9 @@
         <!-- LOG4J2 implementation is optional -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-1.2-api</artifactId>
+            <artifactId>log4j-api</artifactId>
             <version>${log4j.version}</version>
-            <scope>test</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>

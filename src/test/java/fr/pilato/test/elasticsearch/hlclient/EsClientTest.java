@@ -48,6 +48,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.client.transform.DeleteTransformRequest;
 import org.elasticsearch.client.transform.GetTransformRequest;
 import org.elasticsearch.client.transform.GetTransformResponse;
 import org.elasticsearch.client.transform.PutTransformRequest;
@@ -57,7 +58,6 @@ import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -68,6 +68,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -281,13 +282,17 @@ class EsClientTest {
 
     @Test
     void transformApi() throws IOException {
+        String id = "test-get";
+
         try {
             client.indices().delete(new DeleteIndexRequest("transform-source"), RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException ignored) { }
+        try {
+            client.transform().deleteTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
         } catch (ElasticsearchStatusException ignored) { }
         client.index(new IndexRequest("transform-source").id("1").source("{\"foo\":\"bar\"}", XContentType.JSON), RequestOptions.DEFAULT);
         client.indices().refresh(new RefreshRequest("transform-source"), RequestOptions.DEFAULT);
 
-        String id = "test-get";
 
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
                 TermsGroupSource.builder().setField("user_id").build()).build();
