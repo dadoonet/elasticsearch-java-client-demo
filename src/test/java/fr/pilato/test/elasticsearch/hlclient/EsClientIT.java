@@ -80,7 +80,7 @@ import java.io.IOException;
 import static org.junit.Assume.assumeNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
-class EsClientTest {
+class EsClientIT {
 
     private static final Logger logger = LogManager.getLogger();
     private static ElasticsearchContainer container;
