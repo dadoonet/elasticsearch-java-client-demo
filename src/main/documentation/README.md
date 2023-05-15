@@ -12,7 +12,7 @@ discussions. It might be useful for anyone, so I'm sharing the code here.
 
 Feel free to add your own examples if you wish.
 
-This repository is tested against Elasticsearch 7.17.10.
+This repository is tested against Elasticsearch ${elasticsearch.version}.
 
 ## Start a local cluster
 
