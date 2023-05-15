@@ -9,16 +9,29 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
+        <!-- Main dependencies -->
         <elasticsearch.version>7.17.10</elasticsearch.version>
         <jackson.version>2.15.0</jackson.version>
         <log4j.version>2.20.0</log4j.version>
         <slf4j.version>2.0.7</slf4j.version>
         <junit.version>5.9.3</junit.version>
         <testcontainers.version>1.18.1</testcontainers.version>
+
+        <!-- JDK -->
         <java.compiler.version>1.8</java.compiler.version>
+
+        <!-- Project settings -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/documentation</directory>
+                <filtering>true</filtering>
+                <targetPath>${project.basedir}</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

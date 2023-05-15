@@ -1,0 +1,26 @@
+name: Build the project
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.PAT }}
+      - name: Update resources with Maven
+        run: mvn -B process-resources
+      - name: Update files if needed
+        uses: stefanzweifel/git-auto-commit-action@v4
+      - name: Set up JDK 17 and Maven Central Repository
+        uses: actions/setup-java@v2
+        with:
+          java-version: '17'
+          distribution: 'adopt'
+          cache: 'maven'
+      - name: Build the project
+        run: mvn -B install
