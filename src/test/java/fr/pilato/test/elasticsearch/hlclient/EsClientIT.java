@@ -59,6 +59,7 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Properties;
 
 import static org.junit.Assume.assumeNotNull;
 
@@ -71,14 +72,17 @@ class EsClientIT {
     private static final String PASSWORD = "changeme";
 
     @BeforeAll
-    static void startOptionallyTestContainers() {
+    static void startOptionallyTestContainers() throws IOException {
         client = getClient("http://localhost:9200");
         if (client == null) {
-            logger.info("Starting testcontainers.");
+            Properties props = new Properties();
+            props.load(EsClientIT.class.getResourceAsStream("/version.properties"));
+            String version = props.getProperty("elasticsearch.version");
+            logger.info("Starting testcontainers with Elasticsearch {}.", version);
             // Start the container. This step might take some time...
             container = new ElasticsearchContainer(
                     DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
-                            .withTag("7.15.2"))
+                            .withTag(version))
                     .withPassword(PASSWORD);
             container.start();
             client = getClient(container.getHttpHostAddress());
