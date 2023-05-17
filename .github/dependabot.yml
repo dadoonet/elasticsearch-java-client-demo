@@ -6,37 +6,4 @@ updates:
     interval: daily
     time: "04:00"
   open-pull-requests-limit: 99
-  ignore:
-  - dependency-name: org.elasticsearch.client:elasticsearch-rest-high-level-client
-    versions:
-    - 7.10.2
-    - 7.11.0
-    - 7.11.1
-    - 7.11.2
-    - 7.12.0
-  - dependency-name: com.fasterxml.jackson.core:jackson-databind
-    versions:
-    - 2.12.1
-    - 2.12.2
-  - dependency-name: com.fasterxml.jackson.core:jackson-core
-    versions:
-    - 2.12.1
-    - 2.12.2
-  - dependency-name: org.testcontainers:elasticsearch
-    versions:
-    - 1.15.2
-  - dependency-name: org.junit.jupiter:junit-jupiter-engine
-    versions:
-    - 5.7.0
-  - dependency-name: org.junit.jupiter:junit-jupiter-api
-    versions:
-    - 5.7.0
-  - dependency-name: org.apache.logging.log4j:log4j-core
-    versions:
-    - 2.14.0
-  - dependency-name: org.apache.logging.log4j:log4j-slf4j-impl
-    versions:
-    - 2.14.0
-  - dependency-name: org.apache.logging.log4j:log4j-1.2-api
-    versions:
-    - 2.14.0
+  
