@@ -12,7 +12,7 @@ discussions. It might be useful for anyone, so I'm sharing the code here.
 
 Feel free to add your own examples if you wish.
 
-This repository is tested against Elasticsearch 7.17.10.
+This repository is tested against Elasticsearch 8.7.1.
 
 ## Start a local cluster
 
@@ -24,7 +24,7 @@ docker-compose up
 
 ## Using embedded TestContainers Elasticsearch module
 
-If a local cluster is not running at `http://localhost:9200`, we will start automatically a Docker image using
+If a local cluster is not running at `https://localhost:9200`, we will start automatically a Docker image using
 the [Elasticsearch module for TestContainers](https://www.testcontainers.org/modules/elasticsearch/).
 
 It requires to have Docker running.

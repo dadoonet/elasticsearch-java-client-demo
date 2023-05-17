@@ -54,6 +54,7 @@ import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -61,6 +62,8 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
 
+import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCaCert;
+import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
 import static org.junit.Assume.assumeNotNull;
 
 class EsClientIT {
@@ -73,7 +76,7 @@ class EsClientIT {
 
     @BeforeAll
     static void startOptionallyTestContainers() throws IOException {
-        client = getClient("http://localhost:9200");
+        client = getClient("https://localhost:9200", null);
         if (client == null) {
             Properties props = new Properties();
             props.load(EsClientIT.class.getResourceAsStream("/version.properties"));
@@ -85,7 +88,10 @@ class EsClientIT {
                             .withTag(version))
                     .withPassword(PASSWORD);
             container.start();
-            client = getClient(container.getHttpHostAddress());
+            byte[] certAsBytes = container.copyFileFromContainer(
+                    "/usr/share/elasticsearch/config/certs/http_ca.crt",
+                    InputStream::readAllBytes);
+            client = getClient("https://" + container.getHttpHostAddress(), certAsBytes);
             assumeNotNull(client);
         }
     }
@@ -105,7 +111,9 @@ class EsClientIT {
         }
     }
 
-    static private ElasticsearchClient getClient(String elasticsearchServiceAddress) {
+    static private ElasticsearchClient getClient(String elasticsearchServiceAddress, byte[] certificate) {
+        logger.debug("Trying to connect to {} {}.", elasticsearchServiceAddress,
+                certificate == null ? "with no ssl checks": "using the provided SSL certificate");
         try {
             final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
             credentialsProvider.setCredentials(AuthScope.ANY,
@@ -113,8 +121,11 @@ class EsClientIT {
 
             // Create the low-level client
             restClient = RestClient.builder(HttpHost.create(elasticsearchServiceAddress))
-                    .setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider))
-                    .build();
+                    .setHttpClientConfigCallback(hcb -> hcb
+                            .setDefaultCredentialsProvider(credentialsProvider)
+                            .setSSLContext(certificate != null ?
+                                    createContextFromCaCert(certificate) : createTrustAllCertsContext())
+                    ).build();
 
             // Create the transport with a Jackson mapper
             ElasticsearchTransport transport = new RestClientTransport(restClient, new JacksonJsonpMapper());
