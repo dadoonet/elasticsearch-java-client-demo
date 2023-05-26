@@ -12,7 +12,7 @@ discussions. It might be useful for anyone, so I'm sharing the code here.
 
 Feel free to add your own examples if you wish.
 
-This repository is tested against Elasticsearch 8.7.1.
+This repository is tested against Elasticsearch 8.8.0.
 
 ## Start a local cluster
 
