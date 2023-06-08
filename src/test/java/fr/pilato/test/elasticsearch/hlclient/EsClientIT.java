@@ -30,6 +30,7 @@ import co.elastic.clients.elasticsearch.core.BulkResponse;
 import co.elastic.clients.elasticsearch.core.GetResponse;
 import co.elastic.clients.elasticsearch.core.InfoResponse;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.bulk.BulkResponseItem;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.sql.TranslateResponse;
 import co.elastic.clients.elasticsearch.transform.GetTransformResponse;
@@ -38,6 +39,7 @@ import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import co.elastic.clients.util.BinaryData;
 import co.elastic.clients.util.ContentType;
+import co.elastic.clients.util.Pair;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
@@ -61,6 +63,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCaCert;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
@@ -341,6 +344,8 @@ class EsClientIT {
                     }
                 })
                 .maxOperations(10)
+                .maxSize(1_000_000)
+                .flushInterval(5, TimeUnit.SECONDS)
         );
 
         BinaryData data = BinaryData.of("{\"foo\":\"bar\"}".getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
@@ -369,6 +374,52 @@ class EsClientIT {
                 , ObjectNode.class);
         for (Hit<ObjectNode> hit : response.hits().hits()) {
             logger.info("hit _id = {}, _source = {}", hit.id(), hit.source());
+        }
+    }
+
+    @Test
+    void bulk() throws IOException {
+        int size = 1_000;
+        try {
+            client.indices().delete(dir -> dir.index("bulk"));
+        } catch (ElasticsearchException ignored) { }
+
+        BinaryData data = BinaryData.of("{\"foo\":\"bar\"}".getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
+        BulkResponse response = client.bulk(br -> {
+            br.index("bulk");
+            for (int i = 0; i < size; i++) {
+                br.operations(o -> o.index(ir -> ir.document(data)));
+            }
+            return br;
+        });
+        logger.info("bulk executed in {} ms {} errors", response.errors() ? "with" : "without", response.ingestTook());
+        if (response.errors()) {
+            response.items().stream().filter(p -> p.error() != null)
+                    .forEach(item -> logger.error("Error {} for id {}", item.error().reason(), item.id()));
+        }
+
+        client.indices().refresh(rr -> rr.index("bulk"));
+        SearchResponse<Void> searchResponse = client.search(sr -> sr.index("bulk"), Void.class);
+        logger.info("Indexed {} documents. Found {} documents.", size, searchResponse.hits().total().value());
+    }
+
+    @Test
+    void searchWithBeans() throws IOException {
+        try {
+            client.indices().delete(dir -> dir.index("with-beans"));
+        } catch (ElasticsearchException ignored) { }
+        Person p1 = new Person();
+        p1.setId("1");
+        p1.setName("Foo");
+        Person p2 = new Person();
+        p2.setId("2");
+        p2.setName("Bar");
+        client.index(ir -> ir.index("with-beans").id(p1.getId()).document(p1));
+        client.index(ir -> ir.index("with-beans").id(p2.getId()).document(p2));
+        client.indices().refresh(rr -> rr.index("with-beans"));
+        SearchResponse<Person> response = client.search(sr -> sr.index("with-beans"), Person.class);
+        for (Hit<Person> hit : response.hits().hits()) {
+            logger.info("Person _id = {}, id = {}, name = {}", hit.id(), hit.source().getId(), hit.source().getName());
         }
     }
 
