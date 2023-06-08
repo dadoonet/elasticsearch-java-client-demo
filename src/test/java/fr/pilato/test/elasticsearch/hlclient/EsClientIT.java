@@ -29,6 +29,7 @@ import co.elastic.clients.elasticsearch.core.BulkRequest;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
 import co.elastic.clients.elasticsearch.core.GetResponse;
 import co.elastic.clients.elasticsearch.core.InfoResponse;
+import co.elastic.clients.elasticsearch.core.ReindexResponse;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.bulk.BulkResponseItem;
 import co.elastic.clients.elasticsearch.core.search.Hit;
@@ -423,4 +424,26 @@ class EsClientIT {
         }
     }
 
+    @Test
+    void reindex() throws IOException {
+        // Check the error is thrown when the source index does not exist
+        try {
+            client.reindex(rr -> rr.source(s -> s.index("does-not-exists")).dest(d -> d.index("foo")));
+        } catch (ElasticsearchException e) {
+            logger.info("Got error {}", e.response());
+        }
+
+        // A regular reindex operation
+        try {
+            client.indices().delete(dir -> dir.index("reindex-source"));
+        } catch (ElasticsearchException ignored) { }
+        try {
+            client.indices().delete(dir -> dir.index("reindex-dest"));
+        } catch (ElasticsearchException ignored) { }
+
+        client.index(ir -> ir.index("reindex-source").id("1").withJson(new StringReader("{\"foo\":1}")));
+        client.indices().refresh(rr -> rr.index("reindex-source"));
+        ReindexResponse reindexResponse = client.reindex(rr -> rr.source(s -> s.index("reindex-source")).dest(d -> d.index("reindex-dest")));
+        logger.info("Reindexed {} documents.", reindexResponse.total());
+    }
 }
