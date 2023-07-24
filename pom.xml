@@ -14,7 +14,7 @@
         <jackson.version>2.15.1</jackson.version>
         <log4j.version>2.20.0</log4j.version>
         <slf4j.version>2.0.7</slf4j.version>
-        <junit.version>5.9.3</junit.version>
+        <junit.version>5.10.0</junit.version>
         <testcontainers.version>1.18.1</testcontainers.version>
 
         <!-- JDK -->
