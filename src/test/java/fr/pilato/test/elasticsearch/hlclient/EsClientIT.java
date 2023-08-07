@@ -39,6 +39,8 @@ import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import co.elastic.clients.util.BinaryData;
 import co.elastic.clients.util.ContentType;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
@@ -61,6 +63,7 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -153,6 +156,19 @@ class EsClientIT {
         client.index(ir -> ir.index("get-with-filter").id("1").withJson(input));
         GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index("get-with-filter").id("1").sourceIncludes("application_id"), ObjectNode.class);
         logger.info("doc = {}", getResponse.source());
+    }
+
+    @Test
+    void getAsMap() throws IOException {
+        try {
+            client.indices().delete(dir -> dir.index("get-as-map"));
+        } catch (ElasticsearchException ignored) { }
+        Reader input = new StringReader("{\"foo\":\"bar\", \"application_id\": 6}");
+        client.index(ir -> ir.index("get-as-map").id("1").withJson(input));
+        GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index("get-with-filter").id("1"), ObjectNode.class);
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> result = mapper.convertValue(getResponse.source(), new TypeReference<>() {});
+        logger.info("doc = {}", result);
     }
 
     @Test
