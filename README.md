@@ -2,14 +2,15 @@
 
 # Elasticsearch Client Java Sample project
 
-https://discuss.elastic.co has many questions about the Elasticsearch Java Client.
+I'm getting a lot of questions on https://discuss.elastic.co where
+people are asking about the Elasticsearch Java Client.
 
-To address those questions, I often attempt to reproduce the issues.
+The only way to answer is by trying to reproduce the problems.
 
-This repository houses many examples derived from those discussions.
-I believe it could be beneficial for many, so I've made the code available here.
+This repository contains then some examples that are coming from those
+discussions. It might be useful for anyone, so I'm sharing the code here.
 
-You're welcome to contribute your own examples if you'd like.
+Feel free to add your own examples if you wish.
 
 This repository is tested against Elasticsearch 8.10.1.
 
