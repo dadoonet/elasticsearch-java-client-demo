@@ -1,5 +1,5 @@
 ---
-version: "2.2"
+version: "2.3"
 
 services:
   setup:
@@ -56,6 +56,9 @@ services:
       - esdata01:/usr/share/elasticsearch/data
     ports:
       - ${ES_PORT}:9200
+    # now you could see the indexes by using https://localhost:9200/_cat/indices (user id: elastic, password: changeme)
+    expose:
+      - 9200
     environment:
       - node.name=es01
       - cluster.name=${CLUSTER_NAME}
