@@ -19,32 +19,32 @@
 
 package fr.pilato.test.elasticsearch.hlclient;
 
-public class Person {
-    private String id;
-    private String name;
+public class GeoPoint {
+    private double lon;
+    private double lat;
 
-    private GeoPoint location;
-    public String getId() {
-        return id;
+    public GeoPoint() {
+
     }
 
-    public void setId(String id) {
-        this.id = id;
+    public GeoPoint(double lat, double lon) {
+        this.lon = lon;
+        this.lat = lat;
     }
 
-    public String getName() {
-        return name;
+    public double getLon() {
+        return lon;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setLon(double lon) {
+        this.lon = lon;
     }
 
-    public GeoPoint getLocation() {
-        return location;
+    public double getLat() {
+        return lat;
     }
 
-    public void setLocation(GeoPoint location) {
-        this.location = location;
+    public void setLat(double lat) {
+        this.lat = lat;
     }
 }

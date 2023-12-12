@@ -22,7 +22,10 @@ package fr.pilato.test.elasticsearch.hlclient;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._helpers.bulk.BulkIngester;
 import co.elastic.clients.elasticsearch._helpers.bulk.BulkListener;
+import co.elastic.clients.elasticsearch._types.DistanceUnit;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
+import co.elastic.clients.elasticsearch._types.GeoLocation;
+import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket;
 import co.elastic.clients.elasticsearch.cat.ThreadPoolResponse;
 import co.elastic.clients.elasticsearch.core.BulkRequest;
@@ -459,5 +462,42 @@ class EsClientIT {
         client.indices().refresh(rr -> rr.index("reindex-source"));
         ReindexResponse reindexResponse = client.reindex(rr -> rr.source(s -> s.index("reindex-source")).dest(d -> d.index("reindex-dest")));
         logger.info("Reindexed {} documents.", reindexResponse.total());
+    }
+
+    @Test
+    void geoPointSort() throws IOException {
+        try {
+            client.indices().delete(dir -> dir.index("geo-point-sort"));
+        } catch (ElasticsearchException ignored) { }
+        client.indices().create(cir -> cir.index("geo-point-sort"));
+        client.indices().putMapping(pmr -> pmr.index("geo-point-sort").properties("location", p -> p.geoPoint(gp -> gp)));
+        Person p1 = new Person();
+        p1.setId("1");
+        p1.setName("Foo");
+        p1.setLocation(new GeoPoint(49.0404, 2.0174));
+        Person p2 = new Person();
+        p2.setId("2");
+        p2.setName("Bar");
+        p2.setLocation(new GeoPoint(38.7330, -109.8774));
+        client.index(ir -> ir.index("geo-point-sort").id(p1.getId()).document(p1));
+        client.index(ir -> ir.index("geo-point-sort").id(p2.getId()).document(p2));
+        client.indices().refresh(rr -> rr.index("geo-point-sort"));
+        SearchResponse<Person> response = client.search(sr -> sr.index("geo-point-sort")
+                .sort(so -> so
+                        .geoDistance(gd -> gd
+                            .field("location")
+                            .location(
+                                    new GeoLocation.Builder()
+                                            .latlon(ll -> ll.lat(49.0404).lon(2.0174))
+                                            .build()
+                            )
+                        .order(SortOrder.Asc)
+                        .unit(DistanceUnit.Kilometers)
+                )
+        ), Person.class);
+        for (Hit<Person> hit : response.hits().hits()) {
+            logger.info("Person _id = {}, id = {}, name = {}, distance = {}",
+                    hit.id(), hit.source().getId(), hit.source().getName(), hit.sort().get(0).doubleValue());
+        }
     }
 }
