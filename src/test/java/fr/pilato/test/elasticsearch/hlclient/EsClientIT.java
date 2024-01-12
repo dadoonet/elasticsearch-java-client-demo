@@ -19,6 +19,7 @@
 
 package fr.pilato.test.elasticsearch.hlclient;
 
+import co.elastic.clients.elasticsearch.ElasticsearchAsyncClient;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._helpers.bulk.BulkIngester;
 import co.elastic.clients.elasticsearch._helpers.bulk.BulkListener;
@@ -68,7 +69,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCaCert;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
@@ -80,6 +83,7 @@ class EsClientIT {
     private static ElasticsearchContainer container;
     private static RestClient restClient = null;
     private static ElasticsearchClient client = null;
+    private static ElasticsearchAsyncClient asyncClient = null;
     private static final String PASSWORD = "changeme";
 
     @BeforeAll
@@ -101,6 +105,8 @@ class EsClientIT {
                     InputStream::readAllBytes);
             client = getClient("https://" + container.getHttpHostAddress(), certAsBytes);
             assumeNotNull(client);
+            asyncClient = getAsyncClient("https://" + container.getHttpHostAddress(), certAsBytes);
+            assumeNotNull(asyncClient);
         }
     }
 
@@ -142,6 +148,37 @@ class EsClientIT {
             ElasticsearchClient client = new ElasticsearchClient(transport);
 
             InfoResponse info = client.info();
+            logger.info("Connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
+            return client;
+        } catch (Exception e) {
+            logger.info("No cluster is running yet at {}.", elasticsearchServiceAddress);
+            return null;
+        }
+    }
+
+    static private ElasticsearchAsyncClient getAsyncClient(String elasticsearchServiceAddress, byte[] certificate) {
+        logger.debug("Trying to connect to {} {}.", elasticsearchServiceAddress,
+                certificate == null ? "with no ssl checks": "using the provided SSL certificate");
+        try {
+            final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(AuthScope.ANY,
+                    new UsernamePasswordCredentials("elastic", PASSWORD));
+
+            // Create the low-level client
+            restClient = RestClient.builder(HttpHost.create(elasticsearchServiceAddress))
+                    .setHttpClientConfigCallback(hcb -> hcb
+                            .setDefaultCredentialsProvider(credentialsProvider)
+                            .setSSLContext(certificate != null ?
+                                    createContextFromCaCert(certificate) : createTrustAllCertsContext())
+                    ).build();
+
+            // Create the transport with a Jackson mapper
+            ElasticsearchTransport transport = new RestClientTransport(restClient, new JacksonJsonpMapper());
+
+            // And create the API client
+            ElasticsearchAsyncClient client = new ElasticsearchAsyncClient(transport);
+
+            InfoResponse info = client.info().get();
             logger.info("Connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
             return client;
         } catch (Exception e) {
@@ -499,5 +536,35 @@ class EsClientIT {
             logger.info("Person _id = {}, id = {}, name = {}, distance = {}",
                     hit.id(), hit.source().getId(), hit.source().getName(), hit.sort().get(0).doubleValue());
         }
+    }
+
+    @Test
+    void searchWithTimeout() throws IOException, ExecutionException, InterruptedException {
+        String INDEX = "search-with-timeout";
+        try {
+            client.indices().delete(dir -> dir.index(INDEX));
+        } catch (ElasticsearchException ignored) { }
+        client.index(ir -> ir.index(INDEX).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(INDEX));
+        asyncClient.search(sr -> sr
+                        .index(INDEX)
+                        .query(q -> q.match(mq -> mq.field("foo").query("bar"))),
+                Void.class)
+                .orTimeout(1, TimeUnit.NANOSECONDS)
+                .exceptionally(e -> {
+                    if (e instanceof TimeoutException) {
+                        logger.info("Got a timeout as expected");
+                    } else {
+                        logger.error("Got an unexpected exception", e);
+                    }
+                    return null;
+                });
+        SearchResponse<Void> response = asyncClient.search(sr -> sr
+                                .index(INDEX)
+                                .query(q -> q.match(mq -> mq.field("foo").query("bar"))),
+                        Void.class)
+                .orTimeout(10, TimeUnit.SECONDS)
+                .get();
+        logger.info("response.hits.total.value = {}", response.hits().total().value());
     }
 }
