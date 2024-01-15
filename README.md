@@ -11,7 +11,7 @@ I believe it could be beneficial for many, so I've made the code available here.
 
 You're welcome to contribute your own examples if you'd like.
 
-This repository is tested against Elasticsearch 8.11.2.
+This repository is tested against Elasticsearch 8.11.4.
 
 ## Start a local cluster
 
