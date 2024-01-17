@@ -28,6 +28,8 @@ import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch._types.GeoLocation;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket;
+import co.elastic.clients.elasticsearch.cat.IndicesResponse;
+import co.elastic.clients.elasticsearch.cat.ShardsResponse;
 import co.elastic.clients.elasticsearch.cat.ThreadPoolResponse;
 import co.elastic.clients.elasticsearch.core.BulkRequest;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
@@ -566,5 +568,13 @@ class EsClientIT {
                 .orTimeout(10, TimeUnit.SECONDS)
                 .get();
         logger.info("response.hits.total.value = {}", response.hits().total().value());
+    }
+
+    @Test
+    void catApi() throws IOException {
+        IndicesResponse indices = client.cat().indices();
+        logger.info("indices = {}", indices.valueBody());
+        ShardsResponse shards = client.cat().shards();
+        logger.info("shards = {}", shards.valueBody());
     }
 }
