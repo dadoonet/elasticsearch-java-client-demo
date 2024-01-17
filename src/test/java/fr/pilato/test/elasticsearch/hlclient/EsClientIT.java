@@ -38,8 +38,10 @@ import co.elastic.clients.elasticsearch.core.InfoResponse;
 import co.elastic.clients.elasticsearch.core.ReindexResponse;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.ingest.SimulateResponse;
 import co.elastic.clients.elasticsearch.sql.TranslateResponse;
 import co.elastic.clients.elasticsearch.transform.GetTransformResponse;
+import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
@@ -576,5 +578,41 @@ class EsClientIT {
         logger.info("indices = {}", indices.valueBody());
         ShardsResponse shards = client.cat().shards();
         logger.info("shards = {}", shards.valueBody());
+    }
+
+    @Test
+    void ingestPipelines() throws IOException {
+        // Define some pipelines
+        try {
+            client.ingest().deletePipeline(pr -> pr.id("my-pipeline"));
+        } catch (ElasticsearchException ignored) { }
+        client.ingest().putPipeline(pr -> pr
+                .id("my-pipeline")
+                .processors(p -> p
+                    .script(s -> s
+                            .inline(is -> is
+                                    .source("ctx.foo = 'bar'")
+                                    .lang("painless")
+                            )
+                    )
+                )
+        );
+        client.ingest().putPipeline(pr -> pr
+                .id("my-pipeline")
+                .processors(p -> p
+                    .set(s -> s
+                            .field("foo")
+                            .value(JsonData.of("bar"))
+                            .ignoreFailure(true)
+                    )
+                )
+        );
+        SimulateResponse response = client.ingest().simulate(sir -> sir
+                .id("my-pipeline")
+                .docs(d -> d
+                        .source(JsonData.fromJson("{\"foo\":\"baz\"}"))
+                )
+        );
+        logger.info("response = {}", response);
     }
 }
