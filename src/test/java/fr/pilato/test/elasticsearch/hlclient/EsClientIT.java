@@ -31,12 +31,7 @@ import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket;
 import co.elastic.clients.elasticsearch.cat.IndicesResponse;
 import co.elastic.clients.elasticsearch.cat.ShardsResponse;
 import co.elastic.clients.elasticsearch.cat.ThreadPoolResponse;
-import co.elastic.clients.elasticsearch.core.BulkRequest;
-import co.elastic.clients.elasticsearch.core.BulkResponse;
-import co.elastic.clients.elasticsearch.core.GetResponse;
-import co.elastic.clients.elasticsearch.core.InfoResponse;
-import co.elastic.clients.elasticsearch.core.ReindexResponse;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.*;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.ingest.SimulateResponse;
 import co.elastic.clients.elasticsearch.sql.TranslateResponse;
@@ -44,6 +39,7 @@ import co.elastic.clients.elasticsearch.transform.GetTransformResponse;
 import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
+import co.elastic.clients.transport.TransportException;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import co.elastic.clients.util.BinaryData;
 import co.elastic.clients.util.ContentType;
@@ -80,6 +76,7 @@ import java.util.concurrent.TimeoutException;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCaCert;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
 import static org.junit.Assume.assumeNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class EsClientIT {
 
@@ -614,5 +611,19 @@ class EsClientIT {
                 )
         );
         logger.info("response = {}", response);
+    }
+
+    @Test
+    void sourceRequest() throws IOException {
+        String INDEX = "source-request";
+        try {
+            client.indices().delete(dir -> dir.index(INDEX));
+        } catch (ElasticsearchException ignored) { }
+        client.index(ir -> ir.index(INDEX).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(INDEX));
+        assertThrows(TransportException.class, () -> {
+            // This is failing with ES 8.11
+            client.getSource(gsr -> gsr.index(INDEX).id("1"), ObjectNode.class);
+        });
     }
 }
