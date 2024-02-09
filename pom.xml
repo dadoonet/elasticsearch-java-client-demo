@@ -15,7 +15,7 @@
         <log4j.version>2.22.1</log4j.version>
         <slf4j.version>2.0.11</slf4j.version>
         <junit.version>5.10.1</junit.version>
-        <testcontainers.version>1.19.3</testcontainers.version>
+        <testcontainers.version>1.19.5</testcontainers.version>
 
         <!-- JDK -->
         <java.compiler.version>17</java.compiler.version>
