@@ -56,7 +56,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
 import org.junit.jupiter.api.*;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
-import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
@@ -195,12 +194,12 @@ class EsClientIT {
         indices = new ArrayList<>();
         String methodName = testInfo.getTestMethod().orElseThrow().getName();
         indexName = PREFIX + methodName.toLowerCase(Locale.ROOT);
-        removeExistingIndex(indexName);
+        setAndRemoveIndex(indexName);
     }
 
     @AfterEach
     void cleanIndexAfterRun() {
-        indices.forEach(this::removeExistingIndex);
+        indices.forEach(this::removeIndex);
     }
 
     @Test
@@ -458,7 +457,7 @@ class EsClientIT {
         }
 
         // A regular reindex operation
-        removeExistingIndex(indexName + "-dest");
+        setAndRemoveIndex(indexName + "-dest");
 
         client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":1}")));
         client.indices().refresh(rr -> rr.index(indexName));
@@ -600,11 +599,19 @@ class EsClientIT {
 
     /**
      * This method adds the index name we want to use to the list
-     * and delete the index if it exists.
+     * and deletes the index if it exists.
      * @param name the index name
      */
-    private void removeExistingIndex(String name) {
+    private void setAndRemoveIndex(String name) {
         indices.add(name);
+        removeIndex(name);
+    }
+
+    /**
+     * This method deletes the index if it exists.
+     * @param name the index name
+     */
+    private void removeIndex(String name) {
         try {
             client.indices().delete(dir -> dir.index(name));
             logger.debug("Index [{}] has been removed", name);
