@@ -381,7 +381,8 @@ class EsClientIT {
         try {
             client.indices().delete(dir -> dir.index("bulk"));
         } catch (ElasticsearchException ignored) { }
-        BulkIngester<Void> ingester = BulkIngester.of(b -> b
+
+        try (BulkIngester<Void> ingester = BulkIngester.of(b -> b
                 .client(client)
                 .listener(new BulkListener<Void>() {
                     @Override
@@ -402,15 +403,15 @@ class EsClientIT {
                 .maxOperations(10)
                 .maxSize(1_000_000)
                 .flushInterval(5, TimeUnit.SECONDS)
-        );
-
-        BinaryData data = BinaryData.of("{\"foo\":\"bar\"}".getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
-        for (int i = 0; i < size; i++) {
-            ingester.add(bo -> bo.index(io -> io.index("bulk").document(data)));
+        )) {
+            BinaryData data = BinaryData.of("{\"foo\":\"bar\"}".getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
+            for (int i = 0; i < size; i++) {
+                ingester.add(bo -> bo.index(io -> io.index("bulk").document(data)));
+            }
         }
 
-        // Make sure to close (and flush) the bulk ingester before exiting
-        ingester.close();
+        // Make sure to close (and flush) the bulk ingester before exiting if you are not using try-with-resources
+        // ingester.close();
 
         client.indices().refresh(rr -> rr.index("bulk"));
         SearchResponse<Void> response = client.search(sr -> sr.index("bulk"), Void.class);
