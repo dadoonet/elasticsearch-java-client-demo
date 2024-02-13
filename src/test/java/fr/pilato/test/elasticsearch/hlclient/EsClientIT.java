@@ -76,6 +76,7 @@ import java.util.concurrent.TimeoutException;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCaCert;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
 import static org.junit.Assume.assumeNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class EsClientIT {
@@ -627,4 +628,28 @@ class EsClientIT {
             client.getSource(gsr -> gsr.index(INDEX).id("1"), ObjectNode.class);
         });
     }
+
+    @Test
+    void deleteByQuery() throws IOException {
+        String INDEX = "dbq";
+        try {
+            client.indices().delete(dir -> dir.index(INDEX));
+        } catch (ElasticsearchException ignored) { }
+        client.index(ir -> ir.index(INDEX).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(INDEX));
+        SearchResponse<Void> response = client.search(sr -> sr.index(INDEX), Void.class);
+        assertEquals(1L, response.hits().total().value());
+        DeleteByQueryResponse deleteByQueryResponse = client.deleteByQuery(dbq -> dbq
+                .index(INDEX)
+                .query(q -> q
+                        .match(mq -> mq
+                                .field("foo")
+                                .query("bar"))));
+        assertEquals(1L, deleteByQueryResponse.deleted());
+        client.indices().refresh(rr -> rr.index(INDEX));
+        response = client.search(sr -> sr.index(INDEX), Void.class);
+        assertEquals(0L, response.hits().total().value());
+    }
+
+
 }
