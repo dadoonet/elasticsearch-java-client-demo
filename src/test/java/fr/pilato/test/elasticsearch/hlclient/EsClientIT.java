@@ -54,10 +54,9 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
@@ -65,10 +64,7 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -87,10 +83,12 @@ class EsClientIT {
     private static ElasticsearchClient client = null;
     private static ElasticsearchAsyncClient asyncClient = null;
     private static final String PASSWORD = "changeme";
+    private static final String PREFIX = "esclientit_";
 
     @BeforeAll
     static void startOptionallyTestContainers() throws IOException {
         client = getClient("https://localhost:9200", null);
+        asyncClient = getAsyncClient("https://localhost:9200", null);
         if (client == null) {
             Properties props = new Properties();
             props.load(EsClientIT.class.getResourceAsStream("/version.properties"));
@@ -189,25 +187,35 @@ class EsClientIT {
         }
     }
 
+    List<String> indices;
+    String indexName;
+    
+    @BeforeEach
+    void cleanIndexBeforeRun(TestInfo testInfo) {
+        indices = new ArrayList<>();
+        String methodName = testInfo.getTestMethod().orElseThrow().getName();
+        indexName = PREFIX + methodName.toLowerCase(Locale.ROOT);
+        removeExistingIndex(indexName);
+    }
+
+    @AfterEach
+    void cleanIndexAfterRun() {
+        indices.forEach(this::removeExistingIndex);
+    }
+
     @Test
     void getWithFilter() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("get-with-filter"));
-        } catch (ElasticsearchException ignored) { }
         Reader input = new StringReader("{\"foo\":\"bar\", \"application_id\": 6}");
-        client.index(ir -> ir.index("get-with-filter").id("1").withJson(input));
-        GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index("get-with-filter").id("1").sourceIncludes("application_id"), ObjectNode.class);
+        client.index(ir -> ir.index(indexName).id("1").withJson(input));
+        GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1").sourceIncludes("application_id"), ObjectNode.class);
         logger.info("doc = {}", getResponse.source());
     }
 
     @Test
     void getAsMap() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("get-as-map"));
-        } catch (ElasticsearchException ignored) { }
         Reader input = new StringReader("{\"foo\":\"bar\", \"application_id\": 6}");
-        client.index(ir -> ir.index("get-as-map").id("1").withJson(input));
-        GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index("get-with-filter").id("1"), ObjectNode.class);
+        client.index(ir -> ir.index(indexName).id("1").withJson(input));
+        GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
         ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> result = mapper.convertValue(getResponse.source(), new TypeReference<>() {});
         logger.info("doc = {}", result);
@@ -221,22 +229,16 @@ class EsClientIT {
 
     @Test
     void exist() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("exist"));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index("exist").id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        boolean exists1 = client.exists(gr -> gr.index("exist").id("1")).value();
-        boolean exists2 = client.exists(gr -> gr.index("exist").id("2")).value();
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        boolean exists1 = client.exists(gr -> gr.index(indexName).id("1")).value();
+        boolean exists2 = client.exists(gr -> gr.index(indexName).id("2")).value();
         logger.info("exists1 = {}", exists1);
         logger.info("exists2 = {}", exists2);
     }
 
     @Test
     void createIndex() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("create-index"));
-        } catch (ElasticsearchException ignored) { }
-        client.indices().create(cir -> cir.index("create-index").mappings(m -> m.properties("content", p -> p.text(tp -> tp))));
+        client.indices().create(cir -> cir.index(indexName).mappings(m -> m.properties("content", p -> p.text(tp -> tp))));
     }
 
     @Test
@@ -248,49 +250,40 @@ class EsClientIT {
 
     @Test
     void createMapping() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("create-mapping"));
-        } catch (ElasticsearchException ignored) { }
-        client.indices().create(cir -> cir.index("create-mapping"));
-        client.indices().putMapping(pmr -> pmr.index("create-mapping").properties("foo", p -> p.text(tp -> tp)));
+        client.indices().create(cir -> cir.index(indexName));
+        client.indices().putMapping(pmr -> pmr.index(indexName).properties("foo", p -> p.text(tp -> tp)));
     }
 
     @Test
     void createData() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("test"));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index("test").id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        client.indices().refresh(rr -> rr.index("test"));
-        SearchResponse<Void> response = client.search(sr -> sr.index("test"), Void.class);
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Void> response = client.search(sr -> sr.index(indexName), Void.class);
         logger.info("response.hits.total.value = {}", response.hits().total().value());
     }
 
     @Test
     void searchData() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("search-data"));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index("search-data").id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        client.indices().refresh(rr -> rr.index("search-data"));
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
         SearchResponse<Void> response = client.search(sr -> sr
-                        .index("search-data")
+                        .index(indexName)
                         .query(q -> q.match(mq -> mq.field("foo").query("bar"))),
                 Void.class);
         logger.info("response.hits.total.value = {}", response.hits().total().value());
         response = client.search(sr -> sr
-                        .index("search-data")
+                        .index(indexName)
                         .query(q -> q.term(tq -> tq.field("foo").value("bar"))),
                 Void.class);
         logger.info("response.hits.total.value = {}", response.hits().total().value());
         String matchAllQuery = Base64.getEncoder().encodeToString("{\"match_all\":{}}".getBytes(StandardCharsets.UTF_8));
         response = client.search(sr -> sr
-                        .index("search-data")
+                        .index(indexName)
                         .query(q -> q.wrapper(wq -> wq.query(matchAllQuery))),
                 Void.class);
         logger.info("response.hits.total.value = {}", response.hits().total().value());
         response = client.search(sr -> sr
-                        .index("search-data")
+                        .index(indexName)
                         .query(q -> q.matchAll(maq -> maq))
                         .trackScores(true),
                 Void.class);
@@ -299,16 +292,13 @@ class EsClientIT {
 
     @Test
     void translateSqlQuery() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("test"));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index("test").id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        client.indices().refresh(rr -> rr.index("test"));
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
 
         TranslateResponse translateResponse = client.sql().translate(tr -> tr
-                .query("SELECT * FROM test WHERE foo='bar' limit 10"));
+                .query("SELECT * FROM " + indexName + " WHERE foo='bar' limit 10"));
         SearchResponse<Void> response = client.search(sr -> sr
-                        .index("test")
+                        .index(indexName)
                         .query(translateResponse.query())
                         .size(translateResponse.size().intValue()),
                 Void.class);
@@ -320,16 +310,13 @@ class EsClientIT {
         String id = "test-get";
 
         try {
-            client.indices().delete(dir -> dir.index("transform-source"));
-        } catch (ElasticsearchException ignored) { }
-        try {
             client.transform().deleteTransform(dtr -> dtr.transformId(id));
         } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index("transform-source").id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        client.indices().refresh(rr -> rr.index("transform-source"));
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
         client.transform().putTransform(ptr -> ptr
                 .transformId(id)
-                .source(s -> s.index("transform-source").query(q -> q.matchAll(maq -> maq)))
+                .source(s -> s.index(indexName).query(q -> q.matchAll(maq -> maq)))
                 .dest(d -> d.index("pivot-dest"))
                 .pivot(p -> p
                         .groupBy("reviewer", pgb -> pgb.terms(ta -> ta.field("user_id")))
@@ -344,13 +331,10 @@ class EsClientIT {
 
     @Test
     void highlight() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("highlight"));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index("highlight").withJson(new StringReader("{\"foo\":\"bar baz\"}")));
-        client.indices().refresh(rr -> rr.index("highlight"));
+        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"foo\":\"bar baz\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
         SearchResponse<Void> response = client.search(sr -> sr
-                        .index("highlight")
+                        .index(indexName)
                         .query(q -> q.match(mq -> mq.field("foo").query("bar")))
                         .highlight(h -> h.fields("foo", hf -> hf.maxAnalyzedOffset(10)))
                 , Void.class);
@@ -361,14 +345,11 @@ class EsClientIT {
 
     @Test
     void termsAgg() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("termsagg"));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index("termsagg").id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        client.index(ir -> ir.index("termsagg").id("2").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        client.indices().refresh(rr -> rr.index("termsagg"));
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.index(ir -> ir.index(indexName).id("2").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
         SearchResponse<Void> response = client.search(sr -> sr
-                        .index("termsagg")
+                        .index(indexName)
                         .aggregations("top10foo", a -> a.terms(ta -> ta.field("foo.keyword").size(10)))
                 , Void.class);
         for (StringTermsBucket bucket : response.aggregations().get("top10foo").sterms().buckets().array()) {
@@ -379,13 +360,9 @@ class EsClientIT {
     @Test
     void bulkIngester() throws IOException {
         int size = 1000;
-        try {
-            client.indices().delete(dir -> dir.index("bulk"));
-        } catch (ElasticsearchException ignored) { }
-
         try (BulkIngester<Void> ingester = BulkIngester.of(b -> b
                 .client(client)
-                .listener(new BulkListener<Void>() {
+                .listener(new BulkListener<>() {
                     @Override
                     public void beforeBulk(long executionId, BulkRequest request, List<Void> voids) {
                         logger.debug("going to execute bulk of {} requests", request.operations().size());
@@ -407,27 +384,24 @@ class EsClientIT {
         )) {
             BinaryData data = BinaryData.of("{\"foo\":\"bar\"}".getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
             for (int i = 0; i < size; i++) {
-                ingester.add(bo -> bo.index(io -> io.index("bulk").document(data)));
+                ingester.add(bo -> bo.index(io -> io.index(indexName).document(data)));
             }
         }
 
         // Make sure to close (and flush) the bulk ingester before exiting if you are not using try-with-resources
         // ingester.close();
 
-        client.indices().refresh(rr -> rr.index("bulk"));
-        SearchResponse<Void> response = client.search(sr -> sr.index("bulk"), Void.class);
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Void> response = client.search(sr -> sr.index(indexName), Void.class);
         logger.info("Indexed {} documents. Found {} documents.", size, response.hits().total().value());
     }
 
     @Test
     void rangeQuery() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("rangequery"));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index("rangequery").id("1").withJson(new StringReader("{\"foo\":1}")));
-        client.index(ir -> ir.index("rangequery").id("2").withJson(new StringReader("{\"foo\":2}")));
-        client.indices().refresh(rr -> rr.index("rangequery"));
-        SearchResponse<ObjectNode> response = client.search(sr -> sr.index("rangequery")
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":1}")));
+        client.index(ir -> ir.index(indexName).id("2").withJson(new StringReader("{\"foo\":2}")));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<ObjectNode> response = client.search(sr -> sr.index(indexName)
                         .query(q -> q.range(rq -> rq.field("foo").from("0").to("1")))
                 , ObjectNode.class);
         for (Hit<ObjectNode> hit : response.hits().hits()) {
@@ -438,13 +412,9 @@ class EsClientIT {
     @Test
     void bulk() throws IOException {
         int size = 1_000;
-        try {
-            client.indices().delete(dir -> dir.index("bulk"));
-        } catch (ElasticsearchException ignored) { }
-
         BinaryData data = BinaryData.of("{\"foo\":\"bar\"}".getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
         BulkResponse response = client.bulk(br -> {
-            br.index("bulk");
+            br.index(indexName);
             for (int i = 0; i < size; i++) {
                 br.operations(o -> o.index(ir -> ir.document(data)));
             }
@@ -456,26 +426,23 @@ class EsClientIT {
                     .forEach(item -> logger.error("Error {} for id {}", item.error().reason(), item.id()));
         }
 
-        client.indices().refresh(rr -> rr.index("bulk"));
-        SearchResponse<Void> searchResponse = client.search(sr -> sr.index("bulk"), Void.class);
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Void> searchResponse = client.search(sr -> sr.index(indexName), Void.class);
         logger.info("Indexed {} documents. Found {} documents.", size, searchResponse.hits().total().value());
     }
 
     @Test
     void searchWithBeans() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("with-beans"));
-        } catch (ElasticsearchException ignored) { }
         Person p1 = new Person();
         p1.setId("1");
         p1.setName("Foo");
         Person p2 = new Person();
         p2.setId("2");
         p2.setName("Bar");
-        client.index(ir -> ir.index("with-beans").id(p1.getId()).document(p1));
-        client.index(ir -> ir.index("with-beans").id(p2.getId()).document(p2));
-        client.indices().refresh(rr -> rr.index("with-beans"));
-        SearchResponse<Person> response = client.search(sr -> sr.index("with-beans"), Person.class);
+        client.index(ir -> ir.index(indexName).id(p1.getId()).document(p1));
+        client.index(ir -> ir.index(indexName).id(p2.getId()).document(p2));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Person> response = client.search(sr -> sr.index(indexName), Person.class);
         for (Hit<Person> hit : response.hits().hits()) {
             logger.info("Person _id = {}, id = {}, name = {}", hit.id(), hit.source().getId(), hit.source().getName());
         }
@@ -491,26 +458,18 @@ class EsClientIT {
         }
 
         // A regular reindex operation
-        try {
-            client.indices().delete(dir -> dir.index("reindex-source"));
-        } catch (ElasticsearchException ignored) { }
-        try {
-            client.indices().delete(dir -> dir.index("reindex-dest"));
-        } catch (ElasticsearchException ignored) { }
+        removeExistingIndex(indexName + "-dest");
 
-        client.index(ir -> ir.index("reindex-source").id("1").withJson(new StringReader("{\"foo\":1}")));
-        client.indices().refresh(rr -> rr.index("reindex-source"));
-        ReindexResponse reindexResponse = client.reindex(rr -> rr.source(s -> s.index("reindex-source")).dest(d -> d.index("reindex-dest")));
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":1}")));
+        client.indices().refresh(rr -> rr.index(indexName));
+        ReindexResponse reindexResponse = client.reindex(rr -> rr.source(s -> s.index(indexName)).dest(d -> d.index(indexName + "-dest")));
         logger.info("Reindexed {} documents.", reindexResponse.total());
     }
 
     @Test
     void geoPointSort() throws IOException {
-        try {
-            client.indices().delete(dir -> dir.index("geo-point-sort"));
-        } catch (ElasticsearchException ignored) { }
-        client.indices().create(cir -> cir.index("geo-point-sort"));
-        client.indices().putMapping(pmr -> pmr.index("geo-point-sort").properties("location", p -> p.geoPoint(gp -> gp)));
+        client.indices().create(cir -> cir.index(indexName));
+        client.indices().putMapping(pmr -> pmr.index(indexName).properties("location", p -> p.geoPoint(gp -> gp)));
         Person p1 = new Person();
         p1.setId("1");
         p1.setName("Foo");
@@ -519,10 +478,10 @@ class EsClientIT {
         p2.setId("2");
         p2.setName("Bar");
         p2.setLocation(new GeoPoint(38.7330, -109.8774));
-        client.index(ir -> ir.index("geo-point-sort").id(p1.getId()).document(p1));
-        client.index(ir -> ir.index("geo-point-sort").id(p2.getId()).document(p2));
-        client.indices().refresh(rr -> rr.index("geo-point-sort"));
-        SearchResponse<Person> response = client.search(sr -> sr.index("geo-point-sort")
+        client.index(ir -> ir.index(indexName).id(p1.getId()).document(p1));
+        client.index(ir -> ir.index(indexName).id(p2.getId()).document(p2));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Person> response = client.search(sr -> sr.index(indexName)
                 .sort(so -> so
                         .geoDistance(gd -> gd
                             .field("location")
@@ -543,14 +502,10 @@ class EsClientIT {
 
     @Test
     void searchWithTimeout() throws IOException, ExecutionException, InterruptedException {
-        String INDEX = "search-with-timeout";
-        try {
-            client.indices().delete(dir -> dir.index(INDEX));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index(INDEX).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        client.indices().refresh(rr -> rr.index(INDEX));
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
         asyncClient.search(sr -> sr
-                        .index(INDEX)
+                        .index(indexName)
                         .query(q -> q.match(mq -> mq.field("foo").query("bar"))),
                 Void.class)
                 .orTimeout(1, TimeUnit.NANOSECONDS)
@@ -563,7 +518,7 @@ class EsClientIT {
                     return null;
                 });
         SearchResponse<Void> response = asyncClient.search(sr -> sr
-                                .index(INDEX)
+                                .index(indexName)
                                 .query(q -> q.match(mq -> mq.field("foo").query("bar"))),
                         Void.class)
                 .orTimeout(10, TimeUnit.SECONDS)
@@ -617,39 +572,42 @@ class EsClientIT {
 
     @Test
     void sourceRequest() throws IOException {
-        String INDEX = "source-request";
-        try {
-            client.indices().delete(dir -> dir.index(INDEX));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index(INDEX).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        client.indices().refresh(rr -> rr.index(INDEX));
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
         assertThrows(TransportException.class, () -> {
             // This is failing with ES 8.11
-            client.getSource(gsr -> gsr.index(INDEX).id("1"), ObjectNode.class);
+            client.getSource(gsr -> gsr.index(indexName).id("1"), ObjectNode.class);
         });
     }
 
     @Test
     void deleteByQuery() throws IOException {
-        String INDEX = "dbq";
-        try {
-            client.indices().delete(dir -> dir.index(INDEX));
-        } catch (ElasticsearchException ignored) { }
-        client.index(ir -> ir.index(INDEX).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
-        client.indices().refresh(rr -> rr.index(INDEX));
-        SearchResponse<Void> response = client.search(sr -> sr.index(INDEX), Void.class);
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Void> response = client.search(sr -> sr.index(indexName), Void.class);
         assertEquals(1L, response.hits().total().value());
         DeleteByQueryResponse deleteByQueryResponse = client.deleteByQuery(dbq -> dbq
-                .index(INDEX)
+                .index(indexName)
                 .query(q -> q
                         .match(mq -> mq
                                 .field("foo")
                                 .query("bar"))));
         assertEquals(1L, deleteByQueryResponse.deleted());
-        client.indices().refresh(rr -> rr.index(INDEX));
-        response = client.search(sr -> sr.index(INDEX), Void.class);
+        client.indices().refresh(rr -> rr.index(indexName));
+        response = client.search(sr -> sr.index(indexName), Void.class);
         assertEquals(0L, response.hits().total().value());
     }
 
-
+    /**
+     * This method adds the index name we want to use to the list
+     * and delete the index if it exists.
+     * @param name the index name
+     */
+    private void removeExistingIndex(String name) {
+        indices.add(name);
+        try {
+            client.indices().delete(dir -> dir.index(name));
+            logger.debug("Index [{}] has been removed", name);
+        } catch (IOException | ElasticsearchException ignored) { }
+    }
 }
