@@ -19,7 +19,7 @@
       <Logger name="fr.pilato" level="info" additivity="false">
          <AppenderRef ref="CONSOLE"/>
       </Logger>
-      <Logger name="org.elasticsearch" level="warn" additivity="false">
+      <Logger name="co.elastic" level="warn" additivity="false">
          <AppenderRef ref="CONSOLE"/>
       </Logger>
       <Root level="info">

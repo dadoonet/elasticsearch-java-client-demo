@@ -719,6 +719,18 @@ class EsClientIT {
         assertEquals(0L, response.hits().total().value());
     }
 
+    @Test
+    void updateDocument() throws IOException {
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"show_count\":0}")));
+        client.update(ur -> ur.index(indexName).id("1").script(
+                s -> s.inline(is -> is
+                        .lang(ScriptLanguage.Painless)
+                        .source("ctx._source.show_count += 1"))
+        ), ObjectNode.class);
+        GetResponse<ObjectNode> response = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
+        assertEquals("{\"show_count\":1}", response.source().toString());
+    }
+
     /**
      * This method adds the index name we want to use to the list
      * and deletes the index if it exists.
