@@ -35,6 +35,7 @@ import co.elastic.clients.elasticsearch.cluster.PutComponentTemplateResponse;
 import co.elastic.clients.elasticsearch.core.*;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.indices.CreateIndexResponse;
+import co.elastic.clients.elasticsearch.indices.PutIndexTemplateResponse;
 import co.elastic.clients.elasticsearch.indices.PutMappingResponse;
 import co.elastic.clients.elasticsearch.ingest.PutPipelineResponse;
 import co.elastic.clients.elasticsearch.ingest.SimulateResponse;
@@ -763,6 +764,34 @@ class EsClientIT {
             );
             assertTrue(response.acknowledged());
         }
+    }
+
+    @Test
+    void createIndexTemplate() throws IOException {
+        client.cluster().putComponentTemplate(pct -> pct
+                .name("my_component_template")
+                .template(t -> t
+                        .settings(s -> s.numberOfShards("1").numberOfReplicas("0"))
+                        .mappings(m -> m
+                                .properties("foo", p -> p.text(tp -> tp))
+                        )
+                )
+        );
+        PutIndexTemplateResponse response = client.indices().putIndexTemplate(pit -> pit
+                .name("my_index_template")
+                .indexPatterns("my-index-*")
+                .composedOf("my_component_template")
+                .template(t -> t
+                        .aliases("foo", a -> a
+                                .indexRouting("bar")
+                        )
+                        .settings(s -> s.numberOfShards("1").numberOfReplicas("0"))
+                        .mappings(m -> m
+                                .properties("foo", p -> p.text(tp -> tp))
+                        )
+                )
+        );
+        assertTrue(response.acknowledged());
     }
 
     @Test
