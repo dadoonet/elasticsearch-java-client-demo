@@ -748,6 +748,44 @@ class EsClientIT {
         assertTrue(response.acknowledged());
     }
 
+    @Test
+    void elser() throws IOException {
+        // Create the index with sparse vector
+        client.indices().create(cir -> cir.index(indexName).mappings(m -> m
+                .properties("content", p -> p.text(tp -> tp))
+                .properties("content_embedding", p -> p.sparseVector(sp -> sp))
+        ));
+
+        // Create the pipeline
+        // This requires to have the elserv2 model deployed and started
+        client.ingest().putPipeline(pr -> pr
+                .id("elser-v2-test")
+                .processors(p -> p
+                        .inference(i -> i
+                                .modelId(".elser_model_2")
+                                .fieldMap("content", JsonData.of("content"))
+                                .targetField("content_embedding")
+                        )
+                )
+        );
+
+        try {
+            // Search
+            client.search(sr -> sr
+                    .index(indexName)
+                    .query(q -> q.textExpansion(te -> te
+                            .field("content_embedding")
+                            .modelId(".elser_model_2")
+                            .modelText("How to avoid muscle soreness after running?")
+                    )), ObjectNode.class);
+            fail("We should have an exception here as the model is not deployed");
+        } catch (ElasticsearchException e) {
+            // We are expecting an exception as the model is not deployed
+            assertEquals("[.elser_model_2] is not an inference service model or a deployed ml model", e.error().reason());
+            assertEquals(404, e.status());
+        }
+    }
+
     /**
      * This method adds the index name we want to use to the list
      * and deletes the index if it exists.
