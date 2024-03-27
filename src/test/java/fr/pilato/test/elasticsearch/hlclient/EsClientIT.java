@@ -81,6 +81,7 @@ import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCa
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
 import static org.junit.Assume.assumeNotNull;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class EsClientIT {
 
@@ -769,7 +770,8 @@ class EsClientIT {
                 )
         );
 
-        try {
+        // We are expecting an exception as the model is not deployed
+        ElasticsearchException exception = assertThrows(ElasticsearchException.class, () -> {
             // Search
             client.search(sr -> sr
                     .index(indexName)
@@ -778,12 +780,9 @@ class EsClientIT {
                             .modelId(".elser_model_2")
                             .modelText("How to avoid muscle soreness after running?")
                     )), ObjectNode.class);
-            fail("We should have an exception here as the model is not deployed");
-        } catch (ElasticsearchException e) {
-            // We are expecting an exception as the model is not deployed
-            assertEquals("[.elser_model_2] is not an inference service model or a deployed ml model", e.error().reason());
-            assertEquals(404, e.status());
-        }
+        });
+        assertEquals("[.elser_model_2] is not an inference service model or a deployed ml model", exception.error().reason());
+        assertEquals(404, exception.status());
     }
 
     /**
