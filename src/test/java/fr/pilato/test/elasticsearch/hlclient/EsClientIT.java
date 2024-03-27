@@ -696,11 +696,8 @@ class EsClientIT {
     void sourceRequest() throws IOException {
         client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
         client.indices().refresh(rr -> rr.index(indexName));
-        assertThrows(TransportException.class, () -> {
-            // This is failing with ES 8.11. So this test should fail when the following issue will be fixed:
-            // See https://github.com/elastic/elasticsearch-java/issues/741
-            client.getSource(gsr -> gsr.index(indexName).id("1"), ObjectNode.class);
-        });
+        GetSourceResponse<ObjectNode> source = client.getSource(gsr -> gsr.index(indexName).id("1"), ObjectNode.class);
+        assertEquals("{\"foo\":\"bar\"}", source.valueBody().toString());
     }
 
     @Test
