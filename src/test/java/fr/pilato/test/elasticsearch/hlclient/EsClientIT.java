@@ -213,26 +213,30 @@ class EsClientIT {
     }
 
     @Test
-    void getWithFilter() throws IOException {
+    void getDocument() throws IOException {
         Reader input = new StringReader("{\"foo\":\"bar\", \"application_id\": 6}");
         client.index(ir -> ir.index(indexName).id("1").withJson(input));
-        GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1").sourceIncludes("application_id"), ObjectNode.class);
-        assertEquals("{\"application_id\":6}", getResponse.source().toString());
-    }
-
-    @Test
-    void getAsMap() throws IOException {
-        Reader input = new StringReader("{\"foo\":\"bar\", \"application_id\": 6}");
-        client.index(ir -> ir.index(indexName).id("1").withJson(input));
-        GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
-        ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> result = mapper.convertValue(getResponse.source(), new TypeReference<>() {});
-        assertAll(
-                () -> assertTrue(result.containsKey("foo")),
-                () -> assertEquals(result.get("foo"), "bar"),
-                () -> assertTrue(result.containsKey("application_id")),
-                () -> assertEquals(6, result.get("application_id"))
-        );
+        {
+            GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
+            assertEquals("{\"foo\":\"bar\",\"application_id\":6}", getResponse.source().toString());
+        }
+        {
+            // With source filtering
+            GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1").sourceIncludes("application_id"), ObjectNode.class);
+            assertEquals("{\"application_id\":6}", getResponse.source().toString());
+        }
+        {
+            // Get as Map
+            GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> result = mapper.convertValue(getResponse.source(), new TypeReference<>() {});
+            assertAll(
+                    () -> assertTrue(result.containsKey("foo")),
+                    () -> assertEquals(result.get("foo"), "bar"),
+                    () -> assertTrue(result.containsKey("application_id")),
+                    () -> assertEquals(6, result.get("application_id"))
+            );
+        }
     }
 
     @Test
