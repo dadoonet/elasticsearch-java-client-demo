@@ -652,10 +652,8 @@ class EsClientIT {
                     .id("my-pipeline")
                     .processors(p -> p
                             .script(s -> s
-                                    .inline(is -> is
-                                            .source("ctx.foo = 'bar'")
-                                            .lang("painless")
-                                    )
+                                    .source("ctx.foo = 'bar'")
+                                    .lang("painless")
                             )
                     )
             );
