@@ -734,16 +734,37 @@ class EsClientIT {
 
     @Test
     void createComponentTemplate() throws IOException {
-        PutComponentTemplateResponse response = client.cluster().putComponentTemplate(pct -> pct
-                .name("my_component_template")
-                .template(t -> t
-                        .settings(s -> s.numberOfShards("1").numberOfReplicas("0"))
-                        .mappings(m -> m
-                                .properties("foo", p -> p.text(tp -> tp))
-                        )
-                )
-        );
-        assertTrue(response.acknowledged());
+        {
+            PutComponentTemplateResponse response = client.cluster().putComponentTemplate(pct -> pct
+                    .name("my_component_template")
+                    .template(t -> t
+                            .settings(s -> s.numberOfShards("1").numberOfReplicas("0"))
+                            .mappings(m -> m
+                                    .properties("foo", p -> p.text(tp -> tp))
+                            )
+                    )
+            );
+            assertTrue(response.acknowledged());
+        }
+
+        {
+            // With JSON
+            PutComponentTemplateResponse response = client.cluster().putComponentTemplate(pct -> pct
+                    .name("my_component_template")
+                    .template(t -> t
+                            .withJson(new StringReader("{\n" +
+                                    "    \"mappings\": {\n" +
+                                    "      \"properties\": {\n" +
+                                    "        \"@timestamp\": {\n" +
+                                    "          \"type\": \"date\"\n" +
+                                    "        }\n" +
+                                    "      }\n" +
+                                    "    }\n" +
+                                    "  }"))
+                    )
+            );
+            assertTrue(response.acknowledged());
+        }
     }
 
     @Test
