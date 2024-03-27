@@ -44,7 +44,6 @@ import co.elastic.clients.elasticsearch.transform.PutTransformResponse;
 import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
-import co.elastic.clients.transport.TransportException;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import co.elastic.clients.util.BinaryData;
 import co.elastic.clients.util.ContentType;
@@ -81,7 +80,6 @@ import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCa
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
 import static org.junit.Assume.assumeNotNull;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class EsClientIT {
 
