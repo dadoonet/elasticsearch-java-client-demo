@@ -31,6 +31,7 @@ import co.elastic.clients.elasticsearch.cat.ThreadPoolResponse;
 import co.elastic.clients.elasticsearch.cat.indices.IndicesRecord;
 import co.elastic.clients.elasticsearch.cat.shards.ShardsRecord;
 import co.elastic.clients.elasticsearch.cat.thread_pool.ThreadPoolRecord;
+import co.elastic.clients.elasticsearch.cluster.PutComponentTemplateResponse;
 import co.elastic.clients.elasticsearch.core.*;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.indices.CreateIndexResponse;
@@ -731,6 +732,20 @@ class EsClientIT {
         ), ObjectNode.class);
         GetResponse<ObjectNode> response = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
         assertEquals("{\"show_count\":1}", response.source().toString());
+    }
+
+    @Test
+    void createComponentTemplate() throws IOException {
+        PutComponentTemplateResponse response = client.cluster().putComponentTemplate(pct -> pct
+                .name("my_component_template")
+                .template(t -> t
+                        .settings(s -> s.numberOfShards("1").numberOfReplicas("0"))
+                        .mappings(m -> m
+                                .properties("foo", p -> p.text(tp -> tp))
+                        )
+                )
+        );
+        assertTrue(response.acknowledged());
     }
 
     /**
