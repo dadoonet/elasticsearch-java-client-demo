@@ -830,6 +830,23 @@ class EsClientIT {
         assertEquals(404, exception.status());
     }
 
+    @Test
+    void testIlm() throws IOException {
+        try {
+            client.ilm().deleteLifecycle(dlr -> dlr.name(indexName + "-ilm"));
+        } catch (IOException | ElasticsearchException ignored) { }
+        client.ilm().putLifecycle(plr -> plr
+                .name(indexName + "-ilm")
+                .policy(p -> p
+                        .phases(ph -> ph
+                                .hot(h -> h
+                                        .actions(JsonData.fromJson("{\"rollover\":{\"max_age\":\"5d\",\"max_size\":\"10gb\"}}"))
+                                )
+                        )
+                )
+        );
+    }
+
     /**
      * This method adds the index name we want to use to the list
      * and deletes the index if it exists.
