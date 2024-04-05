@@ -413,6 +413,9 @@ class EsClientIT {
         int size = 1000;
         try (BulkIngester<Void> ingester = BulkIngester.of(b -> b
                 .client(client)
+                .globalSettings(gs -> gs
+                        .index(indexName)
+                )
                 .listener(new BulkListener<>() {
                     @Override
                     public void beforeBulk(long executionId, BulkRequest request, List<Void> voids) {
@@ -435,7 +438,7 @@ class EsClientIT {
         )) {
             BinaryData data = BinaryData.of("{\"foo\":\"bar\"}".getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
             for (int i = 0; i < size; i++) {
-                ingester.add(bo -> bo.index(io -> io.index(indexName).document(data)));
+                ingester.add(bo -> bo.index(io -> io.document(data)));
             }
         }
 
