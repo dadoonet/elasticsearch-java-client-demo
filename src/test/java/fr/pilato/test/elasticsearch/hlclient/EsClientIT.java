@@ -577,6 +577,36 @@ class EsClientIT {
     }
 
     @Test
+    void geoPointSearch() throws IOException {
+        client.indices().create(cir -> cir.index(indexName));
+        client.indices().putMapping(pmr -> pmr.index(indexName).properties("location", p -> p.geoPoint(gp -> gp)));
+        Person p1 = new Person();
+        p1.setId("1");
+        p1.setName("Foo");
+        p1.setLocation(new GeoPoint(49.0404, 2.0174));
+        Person p2 = new Person();
+        p2.setId("2");
+        p2.setName("Bar");
+        p2.setLocation(new GeoPoint(38.7330, -109.8774));
+        client.index(ir -> ir.index(indexName).id(p1.getId()).document(p1));
+        client.index(ir -> ir.index(indexName).id(p2.getId()).document(p2));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Person> response = client.search(sr -> sr.index(indexName)
+                        .query(q -> q.geoBoundingBox(gbb -> gbb
+                                .field("location")
+                                .boundingBox(bbq -> bbq
+                                        .coords(c -> c
+                                                .bottom(0).left(0).top(50).right(10))
+                        )))
+                , Person.class);
+
+        assertNotNull(response.hits().total());
+        assertEquals(1, response.hits().total().value());
+        Hit<Person> hit1 = response.hits().hits().get(0);
+        assertEquals("1", hit1.id());
+    }
+
+    @Test
     void searchWithTimeout() throws IOException, ExecutionException, InterruptedException {
         client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
         client.indices().refresh(rr -> rr.index(indexName));
