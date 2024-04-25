@@ -880,6 +880,20 @@ class EsClientIT {
         );
     }
 
+    @Test
+    void searchExistField() throws IOException {
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"baz\"}")));
+        client.index(ir -> ir.index(indexName).id("2").withJson(new StringReader("{\"foo\":\"baz\", \"bar\":\"baz\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Void> response = client.search(sr -> sr
+                        .index(indexName)
+                        .query(q -> q.exists(eq -> eq.field("bar")))
+                , Void.class);
+        assertNotNull(response.hits().total());
+        assertEquals(1, response.hits().total().value());
+        assertEquals("2", response.hits().hits().get(0).id());
+    }
+
     /**
      * This method adds the index name we want to use to the list
      * and deletes the index if it exists.
