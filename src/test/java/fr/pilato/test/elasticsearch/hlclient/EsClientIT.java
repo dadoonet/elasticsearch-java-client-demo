@@ -894,6 +894,40 @@ class EsClientIT {
         assertEquals("2", response.hits().hits().get(0).id());
     }
 
+    @Test
+    void multipleAggs() throws IOException {
+        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"france\",\"state\":\"paris\",\"city\":\"paris\"}")));
+        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"germany\",\"state\":\"berlin\",\"city\":\"berlin\"}")));
+        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"italy\",\"state\":\"rome\",\"city\":\"rome\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Void> response = client.search(sr -> sr
+                        .index(indexName)
+                        .aggregations("country", a -> a.terms(ta -> ta.field("country.keyword"))
+                                .aggregations("state", sa -> sa.terms(ta -> ta.field("state.keyword"))
+                                        .aggregations("city", ca -> ca.terms(ta -> ta.field("city.keyword")))
+                                )
+                        )
+                , Void.class);
+        assertNotNull(response.aggregations().get("country"));
+        assertNotNull(response.aggregations().get("country").sterms());
+        assertNotNull(response.aggregations().get("country").sterms().buckets());
+        assertEquals(3, response.aggregations().get("country").sterms().buckets().array().size());
+        StringTermsBucket country = response.aggregations().get("country").sterms().buckets().array().get(0);
+        assertEquals("france", country.key().stringValue());
+        assertNotNull(country.aggregations().get("state"));
+        assertNotNull(country.aggregations().get("state").sterms());
+        assertNotNull(country.aggregations().get("state").sterms().buckets());
+        assertEquals(1, country.aggregations().get("state").sterms().buckets().array().size());
+        StringTermsBucket state = country.aggregations().get("state").sterms().buckets().array().get(0);
+        assertEquals("paris", state.key().stringValue());
+        assertNotNull(state.aggregations().get("city"));
+        assertNotNull(state.aggregations().get("city").sterms());
+        assertNotNull(state.aggregations().get("city").sterms().buckets());
+        assertEquals(1, state.aggregations().get("city").sterms().buckets().array().size());
+        StringTermsBucket city = state.aggregations().get("city").sterms().buckets().array().get(0);
+        assertEquals("paris", city.key().stringValue());
+    }
+
     /**
      * This method adds the index name we want to use to the list
      * and deletes the index if it exists.
