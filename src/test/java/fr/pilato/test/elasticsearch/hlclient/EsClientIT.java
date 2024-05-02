@@ -962,7 +962,7 @@ class EsClientIT {
         }
 
         // Using the Object ES|QL API
-        List<Person> persons = (List<Person>) client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
+        Iterable<Person> persons = client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
         for (Person person : persons) {
             assertNull(person.getId());
             assertNotNull(person.getName());
