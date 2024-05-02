@@ -90,7 +90,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class EsClientIT {
 
     private static final Logger logger = LogManager.getLogger();
-    private static ElasticsearchContainer container;
     private static RestClient restClient = null;
     private static ElasticsearchClient client = null;
     private static ElasticsearchAsyncClient asyncClient = null;
@@ -99,26 +98,22 @@ class EsClientIT {
 
     @BeforeAll
     static void startOptionallyTestContainers() throws IOException {
-        client = getClient("https://localhost:9200", null);
-        asyncClient = getAsyncClient("https://localhost:9200", null);
-        if (client == null) {
-            Properties props = new Properties();
-            props.load(EsClientIT.class.getResourceAsStream("/version.properties"));
-            String version = props.getProperty("elasticsearch.version");
-            logger.info("Starting testcontainers with Elasticsearch {}.", version);
-            // Start the container. This step might take some time...
-            container = new ElasticsearchContainer(
-                    DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
-                            .withTag(version))
-                    .withPassword(PASSWORD)
-                    .withReuse(true);
-            container.start();
-            byte[] certAsBytes = container.copyFileFromContainer(
-                    "/usr/share/elasticsearch/config/certs/http_ca.crt",
-                    InputStream::readAllBytes);
-            client = getClient("https://" + container.getHttpHostAddress(), certAsBytes);
-            asyncClient = getAsyncClient("https://" + container.getHttpHostAddress(), certAsBytes);
-        }
+        Properties props = new Properties();
+        props.load(EsClientIT.class.getResourceAsStream("/version.properties"));
+        String version = props.getProperty("elasticsearch.version");
+        logger.info("Starting testcontainers with Elasticsearch {}.", version);
+        // Start the container. This step might take some time...
+        ElasticsearchContainer container = new ElasticsearchContainer(
+                DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
+                        .withTag(version))
+                .withPassword(PASSWORD)
+                .withReuse(true);
+        container.start();
+        byte[] certAsBytes = container.copyFileFromContainer(
+                "/usr/share/elasticsearch/config/certs/http_ca.crt",
+                InputStream::readAllBytes);
+        client = getClient("https://" + container.getHttpHostAddress(), certAsBytes);
+        asyncClient = getAsyncClient("https://" + container.getHttpHostAddress(), certAsBytes);
 
         assumeNotNull(client);
         assumeNotNull(asyncClient);
