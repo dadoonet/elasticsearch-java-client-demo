@@ -961,7 +961,7 @@ class EsClientIT {
             assertEquals("David", resultSet.getString(1));
         }
 
-        // Using
+        // Using the Object ES|QL API
         List<Person> persons = (List<Person>) client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
         for (Person person : persons) {
             assertNull(person.getId());
