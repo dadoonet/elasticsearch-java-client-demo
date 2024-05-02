@@ -23,6 +23,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchAsyncClient;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._helpers.bulk.BulkIngester;
 import co.elastic.clients.elasticsearch._helpers.bulk.BulkListener;
+import co.elastic.clients.elasticsearch._helpers.esql.jdbc.ResultSetEsqlAdapter;
 import co.elastic.clients.elasticsearch._types.*;
 import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket;
 import co.elastic.clients.elasticsearch.cat.IndicesResponse;
@@ -68,6 +69,8 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -926,6 +929,26 @@ class EsClientIT {
         assertEquals(1, state.aggregations().get("city").sterms().buckets().array().size());
         StringTermsBucket city = state.aggregations().get("city").sterms().buckets().array().get(0);
         assertEquals("paris", city.key().stringValue());
+    }
+
+    @Test
+    void esql() throws IOException, SQLException {
+        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"france\",\"state\":\"paris\",\"city\":\"paris\"}")));
+        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"germany\",\"state\":\"berlin\",\"city\":\"berlin\"}")));
+        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"italy\",\"state\":\"rome\",\"city\":\"rome\"}")));
+        client.indices().refresh(rr -> rr.index(indexName));
+
+        String query = """
+            FROM indexName
+            | WHERE country == "france"
+            | KEEP country
+            | LIMIT 1
+            """.replaceFirst("indexName", indexName);
+
+        try (ResultSet resultSet = client.esql().query(ResultSetEsqlAdapter.INSTANCE, query)) {
+            assertTrue(resultSet.next());
+            assertEquals("france", resultSet.getString(1));
+        }
     }
 
     /**
