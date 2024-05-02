@@ -13,17 +13,14 @@ You're welcome to contribute your own examples if you'd like.
 
 This repository is tested against Elasticsearch 8.13.2.
 
-## Start a local cluster
+We automatically start a Docker image using the [Elasticsearch module for TestContainers](https://www.testcontainers.org/modules/elasticsearch/).
 
-You can start Elasticsearch locally using `docker-compose`:
+If you want to have very fast startup times, you can use the [TestContainers `reuse` feature](https://java.testcontainers.org/features/reuse/).
 
-```sh
-docker-compose up
+To do this, you need to add the following to your `~/.testcontainers.properties` file:
+
+```properties
+testcontainers.reuse.enable=true
 ```
-
-## Using embedded TestContainers Elasticsearch module
-
-If a local cluster is not running at `https://localhost:9200`, we will start automatically a Docker image using
-the [Elasticsearch module for TestContainers](https://www.testcontainers.org/modules/elasticsearch/).
 
 It requires to have Docker running.
