@@ -108,7 +108,8 @@ class EsClientIT {
             container = new ElasticsearchContainer(
                     DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
                             .withTag(version))
-                    .withPassword(PASSWORD);
+                    .withPassword(PASSWORD)
+                    .withReuse(true);
             container.start();
             byte[] certAsBytes = container.copyFileFromContainer(
                     "/usr/share/elasticsearch/config/certs/http_ca.crt",
@@ -119,14 +120,6 @@ class EsClientIT {
 
         assumeNotNull(client);
         assumeNotNull(asyncClient);
-    }
-
-    @AfterAll
-    static void stopOptionallyTestContainers() {
-        if (container != null && container.isRunning()) {
-            container.close();
-        }
-        container = null;
     }
 
     @AfterAll
