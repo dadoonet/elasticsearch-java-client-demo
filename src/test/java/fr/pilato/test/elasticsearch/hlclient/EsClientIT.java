@@ -46,10 +46,12 @@ import co.elastic.clients.elasticsearch.transform.PutTransformResponse;
 import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
+import co.elastic.clients.transport.endpoints.BinaryResponse;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import co.elastic.clients.util.BinaryData;
 import co.elastic.clients.util.ContentType;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.http.HttpHost;
@@ -938,6 +940,21 @@ class EsClientIT {
             | LIMIT 1
             """.replaceFirst("indexName", indexName);
 
+        // Using the Raw ES|QL API
+        BinaryResponse response = client.esql().query(q -> q.query(query));
+        try (InputStream is = response.content()) {
+            // The response object is {"columns":[{"name":"country","type":"text"}],"values":[["france"]]}
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode node = mapper.readTree(is);
+            assertNotNull(node);
+            assertEquals(2, node.size());
+            assertEquals(1, node.get("columns").size());
+            assertEquals("country", node.get("columns").get(0).get("name").asText());
+            assertEquals(1, node.get("values").size());
+            assertEquals("france", node.get("values").get(0).get(0).asText());
+        }
+
+        // Using the JDBC ResultSet ES|QL API
         try (ResultSet resultSet = client.esql().query(ResultSetEsqlAdapter.INSTANCE, query)) {
             assertTrue(resultSet.next());
             assertEquals("france", resultSet.getString(1));
