@@ -24,6 +24,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._helpers.bulk.BulkIngester;
 import co.elastic.clients.elasticsearch._helpers.bulk.BulkListener;
 import co.elastic.clients.elasticsearch._helpers.esql.jdbc.ResultSetEsqlAdapter;
+import co.elastic.clients.elasticsearch._helpers.esql.objects.ObjectsEsqlAdapter;
 import co.elastic.clients.elasticsearch._types.*;
 import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket;
 import co.elastic.clients.elasticsearch.cat.IndicesResponse;
@@ -923,15 +924,20 @@ class EsClientIT {
 
     @Test
     void esql() throws IOException, SQLException {
-        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"france\",\"state\":\"paris\",\"city\":\"paris\"}")));
-        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"germany\",\"state\":\"berlin\",\"city\":\"berlin\"}")));
-        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"italy\",\"state\":\"rome\",\"city\":\"rome\"}")));
+        Person p1 = new Person();
+        p1.setId("1");
+        p1.setName("David");
+        Person p2 = new Person();
+        p2.setId("2");
+        p2.setName("Max");
+        client.index(ir -> ir.index(indexName).id(p1.getId()).document(p1));
+        client.index(ir -> ir.index(indexName).id(p2.getId()).document(p2));
         client.indices().refresh(rr -> rr.index(indexName));
 
         String query = """
             FROM indexName
-            | WHERE country == "france"
-            | KEEP country
+            | WHERE name == "David"
+            | KEEP name
             | LIMIT 1
             """.replaceFirst("indexName", indexName);
 
@@ -944,15 +950,22 @@ class EsClientIT {
             assertNotNull(node);
             assertEquals(2, node.size());
             assertEquals(1, node.get("columns").size());
-            assertEquals("country", node.get("columns").get(0).get("name").asText());
+            assertEquals("name", node.get("columns").get(0).get("name").asText());
             assertEquals(1, node.get("values").size());
-            assertEquals("france", node.get("values").get(0).get(0).asText());
+            assertEquals("David", node.get("values").get(0).get(0).asText());
         }
 
         // Using the JDBC ResultSet ES|QL API
         try (ResultSet resultSet = client.esql().query(ResultSetEsqlAdapter.INSTANCE, query)) {
             assertTrue(resultSet.next());
-            assertEquals("france", resultSet.getString(1));
+            assertEquals("David", resultSet.getString(1));
+        }
+
+        // Using
+        List<Person> persons = (List<Person>) client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
+        for (Person person : persons) {
+            assertNull(person.getId());
+            assertNotNull(person.getName());
         }
     }
 
