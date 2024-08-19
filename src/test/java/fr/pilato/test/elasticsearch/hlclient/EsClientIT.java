@@ -451,7 +451,9 @@ class EsClientIT {
         client.index(ir -> ir.index(indexName).id("2").withJson(new StringReader("{\"foo\":2}")));
         client.indices().refresh(rr -> rr.index(indexName));
         SearchResponse<ObjectNode> response = client.search(sr -> sr.index(indexName)
-                        .query(q -> q.range(rq -> rq.field("foo").from("0").to("1")))
+                        .query(q -> q.range(rq -> rq
+                                .number(nrq -> nrq.field("foo").from(0.0).to(1.0))
+                        ))
                 , ObjectNode.class);
         assertNotNull(response.hits().total());
         assertEquals(1, response.hits().total().value());
@@ -750,9 +752,9 @@ class EsClientIT {
     void updateDocument() throws IOException {
         client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"show_count\":0}")));
         client.update(ur -> ur.index(indexName).id("1").script(
-                s -> s.inline(is -> is
+                s -> s
                         .lang(ScriptLanguage.Painless)
-                        .source("ctx._source.show_count += 1"))
+                        .source("ctx._source.show_count += 1")
         ), ObjectNode.class);
         GetResponse<ObjectNode> response = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
         assertEquals("{\"show_count\":1}", response.source().toString());
@@ -867,7 +869,12 @@ class EsClientIT {
                 .policy(p -> p
                         .phases(ph -> ph
                                 .hot(h -> h
-                                        .actions(JsonData.fromJson("{\"rollover\":{\"max_age\":\"5d\",\"max_size\":\"10gb\"}}"))
+                                        .actions(a -> a
+                                                .rollover(r -> r
+                                                        .maxAge(t -> t.time("5d"))
+                                                        .maxSize("10gb")
+                                                )
+                                        )
                                 )
                         )
                 )
