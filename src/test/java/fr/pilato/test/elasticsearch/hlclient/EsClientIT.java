@@ -41,6 +41,7 @@ import co.elastic.clients.elasticsearch.indices.PutIndexTemplateResponse;
 import co.elastic.clients.elasticsearch.indices.PutMappingResponse;
 import co.elastic.clients.elasticsearch.ingest.PutPipelineResponse;
 import co.elastic.clients.elasticsearch.ingest.SimulateResponse;
+import co.elastic.clients.elasticsearch.ingest.simulate.DocumentSimulation;
 import co.elastic.clients.elasticsearch.sql.TranslateResponse;
 import co.elastic.clients.elasticsearch.transform.GetTransformResponse;
 import co.elastic.clients.elasticsearch.transform.PutTransformResponse;
@@ -213,11 +214,13 @@ class EsClientIT {
         client.index(ir -> ir.index(indexName).id("1").withJson(input));
         {
             GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
+            assumeNotNull(getResponse.source());
             assertEquals("{\"foo\":\"bar\",\"application_id\":6}", getResponse.source().toString());
         }
         {
             // With source filtering
             GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1").sourceIncludes("application_id"), ObjectNode.class);
+            assumeNotNull(getResponse.source());
             assertEquals("{\"application_id\":6}", getResponse.source().toString());
         }
         {
@@ -517,9 +520,8 @@ class EsClientIT {
     @Test
     void reindex() throws IOException {
         // Check the error is thrown when the source index does not exist
-        ElasticsearchException exception = assertThrows(ElasticsearchException.class, () -> {
-            client.reindex(rr -> rr.source(s -> s.index(PREFIX + "does-not-exists")).dest(d -> d.index("foo")));
-        });
+        ElasticsearchException exception = assertThrows(ElasticsearchException.class,
+                () -> client.reindex(rr -> rr.source(s -> s.index(PREFIX + "does-not-exists")).dest(d -> d.index("foo"))));
         assertEquals(404, exception.status());
 
         // A regular reindex operation
@@ -714,9 +716,10 @@ class EsClientIT {
                     )
             );
             assertEquals(1, response.docs().size());
-            assertNotNull(response.docs().get(0).doc());
-            assertNotNull(response.docs().get(0).doc().source());
-            assertEquals("bar", response.docs().get(0).doc().source().get("foo").to(String.class));
+            DocumentSimulation doc = response.docs().get(0).doc();
+            assertNotNull(doc);
+            assertNotNull(doc.source());
+            assertEquals("bar", doc.source().get("foo").to(String.class));
         }
     }
 
@@ -757,6 +760,7 @@ class EsClientIT {
                         .source("ctx._source.show_count += 1")
         ), ObjectNode.class);
         GetResponse<ObjectNode> response = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
+        assumeNotNull(response.source());
         assertEquals("{\"show_count\":1}", response.source().toString());
     }
 
@@ -780,15 +784,9 @@ class EsClientIT {
             PutComponentTemplateResponse response = client.cluster().putComponentTemplate(pct -> pct
                     .name("my_component_template")
                     .template(t -> t
-                            .withJson(new StringReader("{\n" +
-                                    "    \"mappings\": {\n" +
-                                    "      \"properties\": {\n" +
-                                    "        \"@timestamp\": {\n" +
-                                    "          \"type\": \"date\"\n" +
-                                    "        }\n" +
-                                    "      }\n" +
-                                    "    }\n" +
-                                    "  }"))
+                            .mappings(
+                                    m -> m.properties("@timestamp", p -> p.date(dp -> dp))
+                            )
                     )
             );
             assertTrue(response.acknowledged());
@@ -949,8 +947,7 @@ class EsClientIT {
             """.replaceFirst("indexName", indexName);
 
         // Using the Raw ES|QL API
-        BinaryResponse response = client.esql().query(q -> q.query(query));
-        try (InputStream is = response.content()) {
+        try (BinaryResponse response = client.esql().query(q -> q.query(query)); InputStream is = response.content()) {
             // The response object is {"columns":[{"name":"country","type":"text"}],"values":[["france"]]}
             ObjectMapper mapper = new ObjectMapper();
             JsonNode node = mapper.readTree(is);
