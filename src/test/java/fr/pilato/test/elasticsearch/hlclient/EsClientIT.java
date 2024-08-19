@@ -114,8 +114,12 @@ class EsClientIT {
         byte[] certAsBytes = container.copyFileFromContainer(
                 "/usr/share/elasticsearch/config/certs/http_ca.crt",
                 InputStream::readAllBytes);
-        client = getClient("https://" + container.getHttpHostAddress(), certAsBytes);
-        asyncClient = getAsyncClient("https://" + container.getHttpHostAddress(), certAsBytes);
+        try {
+            client = getClient("https://" + container.getHttpHostAddress(), certAsBytes);
+            asyncClient = getAsyncClient("https://" + container.getHttpHostAddress(), certAsBytes);
+        } catch (Exception e) {
+            logger.debug("No cluster is running yet at https://{}.", container.getHttpHostAddress());
+        }
 
         assumeNotNull(client);
         assumeNotNull(asyncClient);
@@ -128,66 +132,39 @@ class EsClientIT {
         }
     }
 
-    static private ElasticsearchClient getClient(String elasticsearchServiceAddress, byte[] certificate) {
+    static private ElasticsearchTransport getElasticsearchTransport(String elasticsearchServiceAddress, byte[] certificate) {
         logger.debug("Trying to connect to {} {}.", elasticsearchServiceAddress,
                 certificate == null ? "with no ssl checks": "using the provided SSL certificate");
-        try {
-            final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(AuthScope.ANY,
-                    new UsernamePasswordCredentials("elastic", PASSWORD));
+        final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(AuthScope.ANY,
+                new UsernamePasswordCredentials("elastic", PASSWORD));
 
-            // Create the low-level client
-            restClient = RestClient.builder(HttpHost.create(elasticsearchServiceAddress))
-                    .setHttpClientConfigCallback(hcb -> hcb
-                            .setDefaultCredentialsProvider(credentialsProvider)
-                            .setSSLContext(certificate != null ?
-                                    createContextFromCaCert(certificate) : createTrustAllCertsContext())
-                    ).build();
+        // Create the low-level client
+        restClient = RestClient.builder(HttpHost.create(elasticsearchServiceAddress))
+                .setHttpClientConfigCallback(hcb -> hcb
+                        .setDefaultCredentialsProvider(credentialsProvider)
+                        .setSSLContext(certificate != null ?
+                                createContextFromCaCert(certificate) : createTrustAllCertsContext())
+                ).build();
 
-            // Create the transport with a Jackson mapper
-            ElasticsearchTransport transport = new RestClientTransport(restClient, new JacksonJsonpMapper());
-
-            // And create the API client
-            ElasticsearchClient client = new ElasticsearchClient(transport);
-
-            InfoResponse info = client.info();
-            logger.info("Client connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
-            return client;
-        } catch (Exception e) {
-            logger.debug("No cluster is running yet at {}.", elasticsearchServiceAddress);
-            return null;
-        }
+        // Create the transport with a Jackson mapper
+        return new RestClientTransport(restClient, new JacksonJsonpMapper());
     }
 
-    static private ElasticsearchAsyncClient getAsyncClient(String elasticsearchServiceAddress, byte[] certificate) {
-        logger.debug("Trying to connect to {} {}.", elasticsearchServiceAddress,
-                certificate == null ? "with no ssl checks": "using the provided SSL certificate");
-        try {
-            final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(AuthScope.ANY,
-                    new UsernamePasswordCredentials("elastic", PASSWORD));
+    static private ElasticsearchClient getClient(String elasticsearchServiceAddress, byte[] certificate) throws Exception {
+        // Create the API client
+        ElasticsearchClient client = new ElasticsearchClient(getElasticsearchTransport(elasticsearchServiceAddress, certificate));
+        InfoResponse info = client.info();
+        logger.info("Client connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
+        return client;
+    }
 
-            // Create the low-level client
-            restClient = RestClient.builder(HttpHost.create(elasticsearchServiceAddress))
-                    .setHttpClientConfigCallback(hcb -> hcb
-                            .setDefaultCredentialsProvider(credentialsProvider)
-                            .setSSLContext(certificate != null ?
-                                    createContextFromCaCert(certificate) : createTrustAllCertsContext())
-                    ).build();
-
-            // Create the transport with a Jackson mapper
-            ElasticsearchTransport transport = new RestClientTransport(restClient, new JacksonJsonpMapper());
-
-            // And create the API client
-            ElasticsearchAsyncClient client = new ElasticsearchAsyncClient(transport);
-
-            InfoResponse info = client.info().get();
-            logger.info("Async Client connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
-            return client;
-        } catch (Exception e) {
-            logger.debug("No cluster is running yet at {}.", elasticsearchServiceAddress);
-            return null;
-        }
+    static private ElasticsearchAsyncClient getAsyncClient(String elasticsearchServiceAddress, byte[] certificate) throws Exception {
+        // Create the API client
+        ElasticsearchAsyncClient client = new ElasticsearchAsyncClient(getElasticsearchTransport(elasticsearchServiceAddress, certificate));
+        InfoResponse info = client.info().get();
+        logger.info("Async Client connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
+        return client;
     }
 
     List<String> indices;
