@@ -36,9 +36,7 @@ import co.elastic.clients.elasticsearch.cat.thread_pool.ThreadPoolRecord;
 import co.elastic.clients.elasticsearch.cluster.PutComponentTemplateResponse;
 import co.elastic.clients.elasticsearch.core.*;
 import co.elastic.clients.elasticsearch.core.search.Hit;
-import co.elastic.clients.elasticsearch.indices.CreateIndexResponse;
-import co.elastic.clients.elasticsearch.indices.PutIndexTemplateResponse;
-import co.elastic.clients.elasticsearch.indices.PutMappingResponse;
+import co.elastic.clients.elasticsearch.indices.*;
 import co.elastic.clients.elasticsearch.ingest.PutPipelineResponse;
 import co.elastic.clients.elasticsearch.ingest.SimulateResponse;
 import co.elastic.clients.elasticsearch.ingest.simulate.DocumentSimulation;
@@ -958,6 +956,42 @@ class EsClientIT {
     @Test
     void callHotThreads() {
         assertThrows(TransportException.class, () -> client.nodes().hotThreads());
+    }
+
+    @Test
+    void withAliases() throws IOException {
+        setAndRemoveIndex(indexName + "-v2");
+        assertTrue(client.indices().create(cir -> cir.index(indexName)
+                .aliases(indexName + "_alias", a -> a)).acknowledged());
+        assertTrue(client.indices().create(cir -> cir.index(indexName + "-v2")).acknowledged());
+
+        // Check the alias existence by its name
+        assertTrue(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
+
+        // Check we have one alias on indexName
+        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName)).result().get(indexName).aliases().size());
+        // Check we have no alias on indexName-v2
+        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).result().get(indexName + "-v2").aliases().size());
+
+        // Switch the alias indexName_alias from indexName to indexName-v2
+        client.indices().updateAliases(ua -> ua
+                .actions(a -> a.add(aa -> aa.alias(indexName + "_alias").index(indexName + "-v2")))
+                .actions(a -> a.remove(ra -> ra.alias(indexName + "_alias").index(indexName)))
+        );
+
+        // Check we have no alias on indexName
+        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName)).result().get(indexName).aliases().size());
+        // Check we have one alias on indexName-v2
+        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).result().get(indexName + "-v2").aliases().size());
+
+        // Check the alias existence by its name
+        assertTrue(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
+
+        // Delete the alias
+        client.indices().deleteAlias(da -> da.name(indexName + "_alias").index("*"));
+
+        // Check the alias non-existence by its name
+        assertFalse(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
     }
 
     /**
