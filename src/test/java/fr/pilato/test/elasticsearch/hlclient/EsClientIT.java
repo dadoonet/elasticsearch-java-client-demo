@@ -48,6 +48,7 @@ import co.elastic.clients.elasticsearch.transform.PutTransformResponse;
 import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
+import co.elastic.clients.transport.TransportException;
 import co.elastic.clients.transport.endpoints.BinaryResponse;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import co.elastic.clients.util.BinaryData;
@@ -948,6 +949,15 @@ class EsClientIT {
             assertNull(person.getId());
             assertNotNull(person.getName());
         }
+    }
+
+    /**
+     * This one is failing for now. So we are expecting a failure.
+     * When updating to 8.15.1, it should fix it.
+     */
+    @Test
+    void callHotThreads() {
+        assertThrows(TransportException.class, () -> client.nodes().hotThreads());
     }
 
     /**
