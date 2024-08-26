@@ -994,6 +994,30 @@ class EsClientIT {
         assertFalse(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
     }
 
+    @Test
+    void kNNWithFunctionScore() throws IOException {
+        client.indices().create(cir -> cir.index(indexName).mappings(m -> m
+                .properties("vector", p -> p.denseVector(dv -> dv))
+                .properties("country", p -> p.keyword(k -> k))
+        ));
+        client.index(ir -> ir.index(indexName).withJson(new StringReader("{\"country\":\"france\", \"vector\":[1.0, 0.4, 0.8]}")));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Void> response = client.search(sr -> sr
+                .index(indexName)
+                .query(q -> q.functionScore(
+                        fsq -> fsq
+                                .query(qknn -> qknn.knn(
+                                        k -> k.field("vector").queryVector(0.9f, 0.4f, 0.8f)
+                                ))
+                                .functions(fs -> fs.randomScore(rs -> rs.field("country").seed("hello")))
+                ))
+        , Void.class);
+
+        assumeNotNull(response.hits().total());
+        assertEquals(1, response.hits().total().value());
+        assertEquals(0.4063275, response.hits().hits().get(0).score());
+    }
+
     /**
      * This method adds the index name we want to use to the list
      * and deletes the index if it exists.
