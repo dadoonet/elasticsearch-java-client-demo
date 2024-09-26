@@ -1018,6 +1018,47 @@ class EsClientIT {
         assertEquals(0.4063275, response.hits().hits().get(0).score());
     }
 
+    @Test
+    void boolQuery() throws IOException {
+        client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("""
+                {
+                    "number":1,
+                    "effective_date":"2024-10-01T00:00:00.000Z"
+                }""")));
+        client.index(ir -> ir.index(indexName).id("2").withJson(new StringReader("""
+                {
+                    "number":2,
+                    "effective_date":"2024-10-02T00:00:00.000Z"
+                }""")));
+        client.index(ir -> ir.index(indexName).id("3").withJson(new StringReader("""
+                {
+                    "number":3,
+                    "effective_date":"2024-10-03T00:00:00.000Z"
+                }""")));
+        client.index(ir -> ir.index(indexName).id("4").withJson(new StringReader("""
+                {
+                    "number":4,
+                    "effective_date":"2024-10-04T00:00:00.000Z"
+                }""")));
+        client.indices().refresh(rr -> rr.index(indexName));
+        SearchResponse<Void> response = client.search(sr -> sr
+                        .index(indexName)
+                        .query(q -> q.bool(bq -> bq
+                                .filter(fq -> fq.terms(tq -> tq.field("number")
+                                        .terms(t -> t.value(List.of(
+                                                FieldValue.of("2"),
+                                                FieldValue.of("3"))))))
+                                .filter(fq -> fq
+                                        .range(rq -> rq.date(drq -> drq
+                                                .field("effective_date")
+                                                .gte("2024-10-03T00:00:00.000Z"))))
+                        ))
+                , Void.class);
+        assertNotNull(response.hits().total());
+        assertEquals(1, response.hits().total().value());
+        assertEquals("3", response.hits().hits().get(0).id());
+    }
+
     /**
      * This method adds the index name we want to use to the list
      * and deletes the index if it exists.
