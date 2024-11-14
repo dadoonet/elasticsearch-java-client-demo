@@ -432,7 +432,7 @@ class EsClientIT {
         client.indices().refresh(rr -> rr.index(indexName));
         SearchResponse<ObjectNode> response = client.search(sr -> sr.index(indexName)
                         .query(q -> q.range(rq -> rq
-                                .number(nrq -> nrq.field("foo").gt(0.0).lt(1.0))
+                                .number(nrq -> nrq.field("foo").gte(0.0).lte(1.0))
                         ))
                 , ObjectNode.class);
         assertNotNull(response.hits().total());
