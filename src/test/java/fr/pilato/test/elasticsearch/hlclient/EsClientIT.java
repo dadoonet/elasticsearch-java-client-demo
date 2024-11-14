@@ -44,6 +44,7 @@ import co.elastic.clients.elasticsearch.sql.TranslateResponse;
 import co.elastic.clients.elasticsearch.transform.GetTransformResponse;
 import co.elastic.clients.elasticsearch.transform.PutTransformResponse;
 import co.elastic.clients.json.JsonData;
+import co.elastic.clients.json.JsonpMappingException;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.TransportException;
@@ -431,7 +432,7 @@ class EsClientIT {
         client.indices().refresh(rr -> rr.index(indexName));
         SearchResponse<ObjectNode> response = client.search(sr -> sr.index(indexName)
                         .query(q -> q.range(rq -> rq
-                                .number(nrq -> nrq.field("foo").from(0.0).to(1.0))
+                                .number(nrq -> nrq.field("foo").gt(0.0).lt(1.0))
                         ))
                 , ObjectNode.class);
         assertNotNull(response.hits().total());
@@ -924,28 +925,39 @@ class EsClientIT {
 
         // Using the Raw ES|QL API
         try (BinaryResponse response = client.esql().query(q -> q.query(query)); InputStream is = response.content()) {
-            // The response object is {"columns":[{"name":"country","type":"text"}],"values":[["france"]]}
+            // The response object is {"took":5,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
             ObjectMapper mapper = new ObjectMapper();
             JsonNode node = mapper.readTree(is);
             assertNotNull(node);
-            assertEquals(2, node.size());
+            assertEquals(3, node.size());
             assertEquals(1, node.get("columns").size());
             assertEquals("name", node.get("columns").get(0).get("name").asText());
             assertEquals(1, node.get("values").size());
             assertEquals("David", node.get("values").get(0).get(0).asText());
+            assertTrue(node.get("took").asInt() > 0);
         }
 
         // Using the JDBC ResultSet ES|QL API
+        // And this is now failing because of https://github.com/elastic/elasticsearch-java/pull/903
         try (ResultSet resultSet = client.esql().query(ResultSetEsqlAdapter.INSTANCE, query)) {
+            fail("https://github.com/elastic/elasticsearch-java/pull/903 have been fixed. Update the code.");
             assertTrue(resultSet.next());
             assertEquals("David", resultSet.getString(1));
+        } catch (JsonpMappingException e) {
+            // This is expected as we have this issue https://github.com/elastic/elasticsearch-java/pull/903
         }
 
         // Using the Object ES|QL API
-        Iterable<Person> persons = client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
-        for (Person person : persons) {
-            assertNull(person.getId());
-            assertNotNull(person.getName());
+        // And this is now failing because of https://github.com/elastic/elasticsearch-java/pull/903
+        try {
+            Iterable<Person> persons = client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
+            fail("https://github.com/elastic/elasticsearch-java/pull/903 have been fixed. Update the code.");
+            for (Person person : persons) {
+                assertNull(person.getId());
+                assertNotNull(person.getName());
+            }
+        } catch (JsonpMappingException e) {
+            // This is expected as we have this issue https://github.com/elastic/elasticsearch-java/pull/903
         }
     }
 
