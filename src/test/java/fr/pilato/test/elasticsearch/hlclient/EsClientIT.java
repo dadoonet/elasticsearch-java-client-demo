@@ -938,9 +938,7 @@ class EsClientIT {
         }
 
         // Using the JDBC ResultSet ES|QL API
-        // And this is now failing because of https://github.com/elastic/elasticsearch-java/pull/903
         try (ResultSet resultSet = client.esql().query(ResultSetEsqlAdapter.INSTANCE, query)) {
-            fail("https://github.com/elastic/elasticsearch-java/pull/903 have been fixed. Update the code.");
             assertTrue(resultSet.next());
             assertEquals("David", resultSet.getString(1));
         } catch (JsonpMappingException e) {
@@ -948,16 +946,10 @@ class EsClientIT {
         }
 
         // Using the Object ES|QL API
-        // And this is now failing because of https://github.com/elastic/elasticsearch-java/pull/903
-        try {
-            Iterable<Person> persons = client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
-            fail("https://github.com/elastic/elasticsearch-java/pull/903 have been fixed. Update the code.");
-            for (Person person : persons) {
-                assertNull(person.getId());
-                assertNotNull(person.getName());
-            }
-        } catch (JsonpMappingException e) {
-            // This is expected as we have this issue https://github.com/elastic/elasticsearch-java/pull/903
+        Iterable<Person> persons = client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
+        for (Person person : persons) {
+            assertNull(person.getId());
+            assertNotNull(person.getName());
         }
     }
 
