@@ -70,7 +70,6 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
@@ -207,7 +206,7 @@ class EsClientIT {
             final Map<String, Object> result = mapper.convertValue(getResponse.source(), new TypeReference<>() {});
             assertAll(
                     () -> assertTrue(result.containsKey("foo")),
-                    () -> assertEquals(result.get("foo"), "bar"),
+                    () -> assertEquals("bar", result.get("foo")),
                     () -> assertTrue(result.containsKey("application_id")),
                     () -> assertEquals(6, result.get("application_id"))
             );
