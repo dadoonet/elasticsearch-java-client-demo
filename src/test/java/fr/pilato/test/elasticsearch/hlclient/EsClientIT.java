@@ -832,13 +832,13 @@ class EsClientIT {
             // Search
             client.search(sr -> sr
                     .index(indexName)
-                    .query(q -> q.textExpansion(te -> te
+                    .query(q -> q.sparseVector(sv -> sv
                             .field("content_embedding")
-                            .modelId(".elser_model_2")
-                            .modelText("How to avoid muscle soreness after running?")
+                            .inferenceId("elser-v2-test")
+                            .query("How to avoid muscle soreness after running?")
                     )), ObjectNode.class);
         });
-        assertEquals("[.elser_model_2] is not an inference service model or a deployed ml model", exception.error().reason());
+        assertEquals("[elser-v2-test] is not an inference service model or a deployed ml model", exception.error().reason());
         assertEquals(404, exception.status());
     }
 
