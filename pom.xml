@@ -12,7 +12,7 @@
         <!-- Main dependencies -->
         <elasticsearch.version>8.17.0</elasticsearch.version>
         <jackson.version>2.18.2</jackson.version>
-        <log4j.version>2.24.2</log4j.version>
+        <log4j.version>2.24.3</log4j.version>
         <slf4j.version>2.0.16</slf4j.version>
         <junit.version>5.11.3</junit.version>
         <testcontainers.version>1.20.4</testcontainers.version>
