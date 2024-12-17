@@ -931,33 +931,59 @@ class EsClientIT {
             | LIMIT 1
             """.replaceFirst("indexName", indexName);
 
-        // Using the Raw ES|QL API
-        try (final BinaryResponse response = client.esql().query(q -> q.query(query)); InputStream is = response.content()) {
-            // The response object is {"took":5,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
-            final ObjectMapper mapper = new ObjectMapper();
-            final JsonNode node = mapper.readTree(is);
-            assertNotNull(node);
-            assertEquals(3, node.size());
-            assertEquals(1, node.get("columns").size());
-            assertEquals("name", node.get("columns").get(0).get("name").asText());
-            assertEquals(1, node.get("values").size());
-            assertEquals("David", node.get("values").get(0).get(0).asText());
-            assertTrue(node.get("took").asInt() > 0);
+        {
+            // Using the Raw ES|QL API
+            try (final BinaryResponse response = client.esql().query(q -> q.query(query)); InputStream is = response.content()) {
+                // The response object is {"took":5,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
+                final ObjectMapper mapper = new ObjectMapper();
+                final JsonNode node = mapper.readTree(is);
+                assertNotNull(node);
+                assertEquals(3, node.size());
+                assertEquals(1, node.get("columns").size());
+                assertEquals("name", node.get("columns").get(0).get("name").asText());
+                assertEquals(1, node.get("values").size());
+                assertEquals("David", node.get("values").get(0).get(0).asText());
+                assertTrue(node.get("took").asInt() > 0);
+            }
         }
 
-        // Using the JDBC ResultSet ES|QL API
-        try (final ResultSet resultSet = client.esql().query(ResultSetEsqlAdapter.INSTANCE, query)) {
-            assertTrue(resultSet.next());
-            assertEquals("David", resultSet.getString(1));
-        } catch (final JsonpMappingException e) {
-            // This is expected as we have this issue https://github.com/elastic/elasticsearch-java/pull/903
+        {
+            // Using the JDBC ResultSet ES|QL API
+            try (final ResultSet resultSet = client.esql().query(ResultSetEsqlAdapter.INSTANCE, query)) {
+                assertTrue(resultSet.next());
+                assertEquals("David", resultSet.getString(1));
+            } catch (final JsonpMappingException e) {
+                // This is expected as we have this issue https://github.com/elastic/elasticsearch-java/pull/903
+            }
         }
 
-        // Using the Object ES|QL API
-        final Iterable<Person> persons = client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
-        for (final Person person : persons) {
-            assertNull(person.getId());
-            assertNotNull(person.getName());
+        {
+            // Using the Object ES|QL API
+            final Iterable<Person> persons = client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
+            for (final Person person : persons) {
+                assertNull(person.getId());
+                assertNotNull(person.getName());
+            }
+        }
+
+        {
+            // Using named parameters
+            String parametrizedQuery = """
+            FROM indexName
+            | WHERE name == ?name
+            | KEEP name
+            | LIMIT 1
+            """.replaceFirst("indexName", indexName);
+
+            // Using the Object ES|QL API
+            final Iterable<Person> persons = client.esql()
+                    .query(ObjectsEsqlAdapter.of(Person.class), parametrizedQuery,
+                            Map.of("name", "David")
+                    );
+            for (final Person person : persons) {
+                assertNull(person.getId());
+                assertNotNull(person.getName());
+            }
         }
     }
 
