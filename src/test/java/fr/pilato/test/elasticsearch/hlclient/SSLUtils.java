@@ -19,8 +19,8 @@
 
 package fr.pilato.test.elasticsearch.hlclient;
 
-import org.apache.http.ssl.SSLContextBuilder;
-import org.apache.http.ssl.SSLContexts;
+import org.apache.hc.core5.ssl.SSLContextBuilder;
+import org.apache.hc.core5.ssl.SSLContexts;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
