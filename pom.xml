@@ -11,7 +11,7 @@
     <properties>
         <!-- Main dependencies -->
         <elasticsearch.version>8.17.4</elasticsearch.version>
-        <jackson.version>2.18.3</jackson.version>
+        <jackson.version>2.19.0</jackson.version>
         <log4j.version>2.24.3</log4j.version>
         <slf4j.version>2.0.17</slf4j.version>
         <junit.version>5.12.2</junit.version>
