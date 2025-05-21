@@ -45,25 +45,16 @@ import co.elastic.clients.elasticsearch.transform.GetTransformResponse;
 import co.elastic.clients.elasticsearch.transform.PutTransformResponse;
 import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.JsonpMappingException;
-import co.elastic.clients.json.jackson.JacksonJsonpMapper;
-import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.TransportException;
 import co.elastic.clients.transport.endpoints.BinaryResponse;
-import co.elastic.clients.transport.rest_client.RestClientTransport;
 import co.elastic.clients.util.BinaryData;
 import co.elastic.clients.util.ContentType;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.http.HttpHost;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.RestClient;
 import org.junit.jupiter.api.*;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.utility.DockerImageName;
@@ -91,7 +82,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class EsClientIT {
 
     private static final Logger logger = LogManager.getLogger();
-    private static RestClient restClient = null;
     private static ElasticsearchClient client = null;
     private static ElasticsearchAsyncClient asyncClient = null;
     private static final String PASSWORD = "changeme";
@@ -126,33 +116,21 @@ class EsClientIT {
 
     @AfterAll
     static void elasticsearchClient() throws IOException {
-        if (restClient != null) {
-            restClient.close();
+        if (client != null) {
+            client.close();
         }
-    }
-
-    static private ElasticsearchTransport getElasticsearchTransport(final String elasticsearchServiceAddress, final byte[] certificate) {
-        logger.debug("Trying to connect to {} {}.", elasticsearchServiceAddress,
-                certificate == null ? "with no ssl checks": "using the provided SSL certificate");
-        final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-        credentialsProvider.setCredentials(AuthScope.ANY,
-                new UsernamePasswordCredentials("elastic", PASSWORD));
-
-        // Create the low-level client
-        restClient = RestClient.builder(HttpHost.create(elasticsearchServiceAddress))
-                .setHttpClientConfigCallback(hcb -> hcb
-                        .setDefaultCredentialsProvider(credentialsProvider)
-                        .setSSLContext(certificate != null ?
-                                createContextFromCaCert(certificate) : createTrustAllCertsContext())
-                ).build();
-
-        // Create the transport with a Jackson mapper
-        return new RestClientTransport(restClient, new JacksonJsonpMapper());
+        if (asyncClient != null) {
+            asyncClient.close();
+        }
     }
 
     static private ElasticsearchClient getClient(final String elasticsearchServiceAddress, final byte[] certificate) throws Exception {
         // Create the API client
-        final ElasticsearchClient client = new ElasticsearchClient(getElasticsearchTransport(elasticsearchServiceAddress, certificate));
+        final ElasticsearchClient client = ElasticsearchClient.of(b -> b
+                .host(elasticsearchServiceAddress)
+                .sslContext(certificate != null ? createContextFromCaCert(certificate) : createTrustAllCertsContext())
+                .usernameAndPassword("elastic", PASSWORD)
+        );
         final InfoResponse info = client.info();
         logger.info("Client connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
         return client;
@@ -160,7 +138,11 @@ class EsClientIT {
 
     static private ElasticsearchAsyncClient getAsyncClient(final String elasticsearchServiceAddress, final byte[] certificate) throws Exception {
         // Create the API client
-        final ElasticsearchAsyncClient client = new ElasticsearchAsyncClient(getElasticsearchTransport(elasticsearchServiceAddress, certificate));
+        final ElasticsearchAsyncClient client = ElasticsearchAsyncClient.of(b -> b
+                .host(elasticsearchServiceAddress)
+                .sslContext(certificate != null ? createContextFromCaCert(certificate) : createTrustAllCertsContext())
+                .usernameAndPassword("elastic", PASSWORD)
+        );
         final InfoResponse info = client.info().get();
         logger.info("Async Client connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
         return client;
@@ -665,7 +647,7 @@ class EsClientIT {
     void catApi() throws IOException {
         final ThreadPoolResponse threadPool = client.cat().threadPool();
         assertNotNull(threadPool);
-        for (final ThreadPoolRecord record : threadPool.valueBody()) {
+        for (final ThreadPoolRecord record : threadPool.threadPools()) {
             logger.debug("threadPool = {}", record);
             assertNotNull(record.nodeName());
             assertNotNull(record.name());
@@ -675,7 +657,7 @@ class EsClientIT {
         }
         final IndicesResponse indices = client.cat().indices();
         assertNotNull(indices);
-        for (final IndicesRecord record : indices.valueBody()) {
+        for (final IndicesRecord record : indices.indices()) {
             logger.debug("index = {}", record);
             assertNotNull(record.index());
             assertNotNull(record.docsCount());
@@ -683,7 +665,7 @@ class EsClientIT {
         }
         final ShardsResponse shards = client.cat().shards();
         assertNotNull(shards);
-        for (final ShardsRecord record : shards.valueBody()) {
+        for (final ShardsRecord record : shards.shards()) {
             logger.debug("shard = {}", record);
             assertNotNull(record.index());
             assertNotNull(record.state());
@@ -702,8 +684,8 @@ class EsClientIT {
                     .id("my-pipeline")
                     .processors(p -> p
                             .script(s -> s
-                                    .source("ctx.foo = 'bar'")
-                                    .lang("painless")
+                                    .lang(ScriptLanguage.Painless)
+                                    .source(src -> src.scriptString("ctx.foo = 'bar'"))
                             )
                     )
             );
@@ -742,7 +724,7 @@ class EsClientIT {
         client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
         client.indices().refresh(rr -> rr.index(indexName));
         final GetSourceResponse<ObjectNode> source = client.getSource(gsr -> gsr.index(indexName).id("1"), ObjectNode.class);
-        assertEquals("{\"foo\":\"bar\"}", source.valueBody().toString());
+        assertEquals("{\"foo\":\"bar\"}", source.source().toString());
     }
 
     @Test
@@ -771,7 +753,7 @@ class EsClientIT {
         client.update(ur -> ur.index(indexName).id("1").script(
                 s -> s
                         .lang(ScriptLanguage.Painless)
-                        .source("ctx._source.show_count += 1")
+                        .source(src -> src.scriptString("ctx._source.show_count += 1"))
         ), ObjectNode.class);
         final GetResponse<ObjectNode> response = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
         assumeNotNull(response.source());
@@ -867,8 +849,8 @@ class EsClientIT {
                             .query("How to avoid muscle soreness after running?")
                     )), ObjectNode.class);
         });
-        assertEquals("[elser-v2-test] is not an inference service model or a deployed ml model", exception.error().reason());
-        assertEquals(404, exception.status());
+        assertEquals("current license is non-compliant for [inference]", exception.error().reason());
+        assertEquals(403, exception.status());
     }
 
     @Test
@@ -963,16 +945,25 @@ class EsClientIT {
         {
             // Using the Raw ES|QL API
             try (final BinaryResponse response = client.esql().query(q -> q.query(query)); InputStream is = response.content()) {
-                // The response object is {"took":5,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
+                // The response object is {
+                //  "took" : 4,
+                //  "is_partial" : false,
+                //  "columns" : [ {
+                //    "name" : "name",
+                //    "type" : "text"
+                //  } ],
+                //  "values" : [ [ "David" ] ]
+                //}
                 final ObjectMapper mapper = new ObjectMapper();
                 final JsonNode node = mapper.readTree(is);
                 assertNotNull(node);
-                assertEquals(3, node.size());
+                assertEquals(4, node.size());
                 assertEquals(1, node.get("columns").size());
                 assertEquals("name", node.get("columns").get(0).get("name").asText());
                 assertEquals(1, node.get("values").size());
                 assertEquals("David", node.get("values").get(0).get(0).asText());
                 assertTrue(node.get("took").asInt() > 0);
+                assertFalse(node.get("is_partial").asBoolean());
             }
         }
 
@@ -1036,9 +1027,9 @@ class EsClientIT {
         assertTrue(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
 
         // Check we have one alias on indexName
-        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName)).result().get(indexName).aliases().size());
+        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases().size());
         // Check we have no alias on indexName-v2
-        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).result().get(indexName + "-v2").aliases().size());
+        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases().size());
 
         // Switch the alias indexName_alias from indexName to indexName-v2
         client.indices().updateAliases(ua -> ua
@@ -1047,9 +1038,9 @@ class EsClientIT {
         );
 
         // Check we have no alias on indexName
-        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName)).result().get(indexName).aliases().size());
+        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases().size());
         // Check we have one alias on indexName-v2
-        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).result().get(indexName + "-v2").aliases().size());
+        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases().size());
 
         // Check the alias existence by its name
         assertTrue(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
