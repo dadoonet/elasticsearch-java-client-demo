@@ -76,6 +76,7 @@ import java.util.random.RandomGenerator;
 
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCaCert;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assume.assumeNotNull;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -172,20 +173,23 @@ class EsClientIT {
                 .withJson(new StringReader("{\"foo\":\"bar\", \"application_id\": 6}")));
         {
             final GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
-            assumeNotNull(getResponse.source());
-            assertEquals("{\"foo\":\"bar\",\"application_id\":6}", getResponse.source().toString());
+            assertThat(getResponse.source()).hasToString("{\"foo\":\"bar\",\"application_id\":6}");
         }
         {
             // With source filtering
             final GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1").sourceIncludes("application_id"), ObjectNode.class);
-            assumeNotNull(getResponse.source());
-            assertEquals("{\"application_id\":6}", getResponse.source().toString());
+            assertThat(getResponse.source()).hasToString("{\"application_id\":6}");
         }
         {
             // Get as Map
             final GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
             final ObjectMapper mapper = new ObjectMapper();
             final Map<String, Object> result = mapper.convertValue(getResponse.source(), new TypeReference<>() {});
+            assertThat(result).allSatisfy(
+                    (key, value) -> {
+                        assertNotNull(key);
+                    }
+            );
             assertAll(
                     () -> assertTrue(result.containsKey("foo")),
                     () -> assertEquals("bar", result.get("foo")),
