@@ -981,12 +981,8 @@ class EsClientIT {
                 final ObjectMapper mapper = new ObjectMapper();
                 final JsonNode jsonNode = mapper.readTree(is);
                 assertThat(jsonNode).isNotNull().hasSize(4);
-                assertThat(jsonNode.get("columns")).isNotNull().hasSize(1).first().satisfies(column -> {
-                    assertThat(column.get("name").asText()).isEqualTo("name");
-                });
-                assertThat(jsonNode.get("values")).isNotNull().hasSize(1).first().satisfies(value -> {
-                    assertThat(value).hasSize(1).first().satisfies(singleValue -> assertThat(singleValue.asText()).isEqualTo("David"));
-                });
+                assertThat(jsonNode.get("columns")).isNotNull().hasSize(1).first().satisfies(column -> assertThat(column.get("name").asText()).isEqualTo("name"));
+                assertThat(jsonNode.get("values")).isNotNull().hasSize(1).first().satisfies(value -> assertThat(value).hasSize(1).first().satisfies(singleValue -> assertThat(singleValue.asText()).isEqualTo("David")));
                 assertThat(jsonNode.get("took").asInt()).isGreaterThan(0);
                 assertThat(jsonNode.get("is_partial").asBoolean()).isFalse();
             }
