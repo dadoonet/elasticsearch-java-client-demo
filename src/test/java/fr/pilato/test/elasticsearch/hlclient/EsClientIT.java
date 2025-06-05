@@ -26,25 +26,19 @@ import co.elastic.clients.elasticsearch._helpers.bulk.BulkListener;
 import co.elastic.clients.elasticsearch._helpers.esql.jdbc.ResultSetEsqlAdapter;
 import co.elastic.clients.elasticsearch._helpers.esql.objects.ObjectsEsqlAdapter;
 import co.elastic.clients.elasticsearch._types.*;
-import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket;
 import co.elastic.clients.elasticsearch.cat.IndicesResponse;
 import co.elastic.clients.elasticsearch.cat.ShardsResponse;
 import co.elastic.clients.elasticsearch.cat.ThreadPoolResponse;
-import co.elastic.clients.elasticsearch.cat.indices.IndicesRecord;
-import co.elastic.clients.elasticsearch.cat.shards.ShardsRecord;
-import co.elastic.clients.elasticsearch.cat.thread_pool.ThreadPoolRecord;
 import co.elastic.clients.elasticsearch.cluster.PutComponentTemplateResponse;
 import co.elastic.clients.elasticsearch.core.*;
-import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.ilm.PutLifecycleResponse;
 import co.elastic.clients.elasticsearch.indices.*;
-import co.elastic.clients.elasticsearch.ingest.DocumentSimulation;
 import co.elastic.clients.elasticsearch.ingest.PutPipelineResponse;
 import co.elastic.clients.elasticsearch.ingest.SimulateResponse;
 import co.elastic.clients.elasticsearch.sql.TranslateResponse;
 import co.elastic.clients.elasticsearch.transform.GetTransformResponse;
 import co.elastic.clients.elasticsearch.transform.PutTransformResponse;
 import co.elastic.clients.json.JsonData;
-import co.elastic.clients.json.JsonpMappingException;
 import co.elastic.clients.transport.TransportException;
 import co.elastic.clients.transport.endpoints.BinaryResponse;
 import co.elastic.clients.util.BinaryData;
@@ -76,8 +70,8 @@ import java.util.random.RandomGenerator;
 
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCaCert;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
+import static org.assertj.core.api.Assertions.*;
 import static org.junit.Assume.assumeNotNull;
-import static org.junit.jupiter.api.Assertions.*;
 
 class EsClientIT {
 
@@ -172,26 +166,21 @@ class EsClientIT {
                 .withJson(new StringReader("{\"foo\":\"bar\", \"application_id\": 6}")));
         {
             final GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
-            assumeNotNull(getResponse.source());
-            assertEquals("{\"foo\":\"bar\",\"application_id\":6}", getResponse.source().toString());
+            assertThat(getResponse.source()).hasToString("{\"foo\":\"bar\",\"application_id\":6}");
         }
         {
             // With source filtering
             final GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1").sourceIncludes("application_id"), ObjectNode.class);
-            assumeNotNull(getResponse.source());
-            assertEquals("{\"application_id\":6}", getResponse.source().toString());
+            assertThat(getResponse.source()).hasToString("{\"application_id\":6}");
         }
         {
             // Get as Map
             final GetResponse<ObjectNode> getResponse = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
             final ObjectMapper mapper = new ObjectMapper();
             final Map<String, Object> result = mapper.convertValue(getResponse.source(), new TypeReference<>() {});
-            assertAll(
-                    () -> assertTrue(result.containsKey("foo")),
-                    () -> assertEquals("bar", result.get("foo")),
-                    () -> assertTrue(result.containsKey("application_id")),
-                    () -> assertEquals(6, result.get("application_id"))
-            );
+            assertThat(result)
+                    .contains(entry("foo", "bar"))
+                    .contains(entry("application_id", 6));
         }
     }
 
@@ -199,24 +188,24 @@ class EsClientIT {
     void exists() throws IOException {
         client.index(ir -> ir.index(indexName).id("1")
                 .withJson(new StringReader("{\"foo\":\"bar\"}")));
-        assertTrue(client.exists(gr -> gr.index(indexName).id("1")).value());
-        assertFalse(client.exists(gr -> gr.index(indexName).id("2")).value());
+        assertThat(client.exists(gr -> gr.index(indexName).id("1")).value()).isTrue();
+        assertThat(client.exists(gr -> gr.index(indexName).id("2")).value()).isFalse();
     }
 
     @Test
     void createIndex() throws IOException {
         final CreateIndexResponse response = client.indices().create(cir -> cir.index(indexName)
                 .mappings(m -> m.properties("content", p -> p.text(tp -> tp))));
-        assertTrue(response.acknowledged());
+        assertThat(response.acknowledged()).isTrue();
     }
 
     @Test
     void callInfo() throws IOException {
         final InfoResponse info = client.info();
         final String version = info.version().number();
-        assertNotNull(version);
-        assertNotNull(info.clusterName());
-        assertNotNull(info.tagline());
+        assertThat(version).isNotBlank();
+        assertThat(info.clusterName()).isNotBlank();
+        assertThat(info.tagline()).isEqualTo("You Know, for Search");
     }
 
     @Test
@@ -224,18 +213,18 @@ class EsClientIT {
         client.indices().create(cir -> cir.index(indexName));
         final PutMappingResponse response = client.indices().putMapping(pmr -> pmr.index(indexName)
                 .properties("foo", p -> p.text(tp -> tp)));
-        assertTrue(response.acknowledged());
+        assertThat(response.acknowledged()).isTrue();
     }
 
     @Test
     void createData() throws IOException {
         final IndexResponse indexResponse = client.index(ir -> ir.index(indexName).id("1")
                 .withJson(new StringReader("{\"foo\":\"bar\"}")));
-        assertEquals(Result.Created, indexResponse.result());
+        assertThat(indexResponse.result()).isEqualTo(Result.Created);
         client.indices().refresh(rr -> rr.index(indexName));
         final SearchResponse<Void> response = client.search(sr -> sr.index(indexName), Void.class);
-        assertNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(1);
     }
 
     @Test
@@ -248,18 +237,18 @@ class EsClientIT {
                             .index(indexName)
                             .query(q -> q.match(mq -> mq.field("foo").query("bar"))),
                     Void.class);
-            assertNotNull(response.hits().total());
-            assertEquals(1, response.hits().total().value());
-            assertEquals("1", response.hits().hits().get(0).id());
+            assertThat(response.hits().total()).isNotNull();
+            assertThat(response.hits().total().value()).isEqualTo(1);
+            assertThat(response.hits().hits().get(0).id()).isEqualTo("1");
         }
         {
             final SearchResponse<Void> response = client.search(sr -> sr
                             .index(indexName)
                             .query(q -> q.term(tq -> tq.field("foo").value("bar"))),
                     Void.class);
-            assertNotNull(response.hits().total());
-            assertEquals(1, response.hits().total().value());
-            assertEquals("1", response.hits().hits().get(0).id());
+            assertThat(response.hits().total()).isNotNull();
+            assertThat(response.hits().total().value()).isEqualTo(1);
+            assertThat(response.hits().hits().get(0).id()).isEqualTo("1");
         }
         {
             final String matchAllQuery = Base64.getEncoder().encodeToString("{\"match_all\":{}}".getBytes(StandardCharsets.UTF_8));
@@ -267,9 +256,9 @@ class EsClientIT {
                             .index(indexName)
                             .query(q -> q.wrapper(wq -> wq.query(matchAllQuery))),
                     Void.class);
-            assertNotNull(response.hits().total());
-            assertEquals(1, response.hits().total().value());
-            assertEquals("1", response.hits().hits().get(0).id());
+            assertThat(response.hits().total()).isNotNull();
+            assertThat(response.hits().total().value()).isEqualTo(1);
+            assertThat(response.hits().hits().get(0).id()).isEqualTo("1");
         }
         {
             final SearchResponse<Void>  response = client.search(sr -> sr
@@ -277,9 +266,9 @@ class EsClientIT {
                             .query(q -> q.matchAll(maq -> maq))
                             .trackScores(true),
                     Void.class);
-            assertNotNull(response.hits().total());
-            assertEquals(1, response.hits().total().value());
-            assertEquals("1", response.hits().hits().get(0).id());
+            assertThat(response.hits().total()).isNotNull();
+            assertThat(response.hits().total().value()).isEqualTo(1);
+            assertThat(response.hits().hits().get(0).id()).isEqualTo("1");
         }
     }
 
@@ -291,18 +280,19 @@ class EsClientIT {
 
         final TranslateResponse translateResponse = client.sql().translate(tr -> tr
                 .query("SELECT * FROM " + indexName + " WHERE foo='bar' limit 10"));
-        assertNotNull(translateResponse.query());
-        assertEquals(10, translateResponse.size());
-        assertNotNull(translateResponse.size());
+        assertThat(translateResponse.query()).isNotNull();
+        assertThat(translateResponse.size())
+                .isNotNull()
+                .isEqualTo(10);
 
         final SearchResponse<Void> response = client.search(sr -> sr
                         .index(indexName)
                         .query(translateResponse.query())
                         .size(translateResponse.size().intValue()),
                 Void.class);
-        assertNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
-        assertEquals("1", response.hits().hits().get(0).id());
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(1);
+        assertThat(response.hits().hits().get(0).id()).isEqualTo("1");
     }
 
     @Test
@@ -324,10 +314,10 @@ class EsClientIT {
                 )
                 .description("this is a test transform")
         );
-        assertTrue(putTransformResponse.acknowledged());
+        assertThat(putTransformResponse.acknowledged()).isTrue();
 
         final GetTransformResponse getTransformResponse = client.transform().getTransform(gt -> gt.transformId(id));
-        assertEquals(1, getTransformResponse.count());
+        assertThat(getTransformResponse.count()).isEqualTo(1);
     }
 
     @Test
@@ -340,12 +330,11 @@ class EsClientIT {
                         .query(q -> q.match(mq -> mq.field("foo").query("bar")))
                         .highlight(h -> h.fields("foo", hf -> hf.maxAnalyzedOffset(10)))
                 , Void.class);
-        assertNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
-        assertNotNull(response.hits().hits().get(0).highlight());
-        assertTrue(response.hits().hits().get(0).highlight().containsKey("foo"));
-        assertEquals(1, response.hits().hits().get(0).highlight().get("foo").size());
-        assertEquals("<em>bar</em> baz", response.hits().hits().get(0).highlight().get("foo").get(0));
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(1);
+        assertThat(response.hits().hits().get(0).highlight())
+                .isNotNull()
+                .containsExactly(entry("foo", Collections.singletonList("<em>bar</em> baz")));
     }
 
     @Test
@@ -360,14 +349,18 @@ class EsClientIT {
                         .aggregations("top10foo", a -> a
                                 .terms(ta -> ta.field("foo.keyword").size(10)))
                 , Void.class);
-        assertNotNull(response.aggregations().get("top10foo"));
-        assertNotNull(response.aggregations().get("top10foo").sterms());
-        assertNotNull(response.aggregations().get("top10foo").sterms().buckets());
-        assertEquals(1, response.aggregations().get("top10foo").sterms().buckets().array().size());
-
-        final StringTermsBucket top10foo = response.aggregations().get("top10foo").sterms().buckets().array().get(0);
-        assertEquals("bar", top10foo.key().stringValue());
-        assertEquals(2, top10foo.docCount());
+        assertThat(response.aggregations())
+                .isNotNull()
+                .containsKey("top10foo");
+        assertThat(response.aggregations().get("top10foo").sterms()).isNotNull();
+        assertThat(response.aggregations().get("top10foo").sterms().buckets()).isNotNull();
+        assertThat(response.aggregations().get("top10foo").sterms().buckets().array())
+                .hasSize(1)
+                .allSatisfy(bucket -> {
+            assertThat(bucket.key()).isNotNull();
+            assertThat(bucket.key().stringValue()).isEqualTo("bar");
+            assertThat(bucket.docCount()).isEqualTo(2);
+        });
     }
 
     @Test
@@ -409,8 +402,8 @@ class EsClientIT {
 
         client.indices().refresh(rr -> rr.index(indexName));
         final SearchResponse<Void> response = client.search(sr -> sr.index(indexName), Void.class);
-        assertNotNull(response.hits().total());
-        assertEquals(size, response.hits().total().value());
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(size);
     }
 
     @Test
@@ -434,11 +427,10 @@ class EsClientIT {
 
             client.indices().refresh(rr -> rr.index(indexName));
             final SearchResponse<Void> response = client.search(sr -> sr.index(indexName).trackTotalHits(tth -> tth.enabled(true)), Void.class);
-            assertNotNull(response.hits().total());
-
+            assertThat(response.hits().total()).isNotNull();
             // But this test is failing as the flush is not sending the last batch
-            // assertEquals(size, response.hits().total().value());
-            assertEquals(size - 10_000, response.hits().total().value());
+            // assertThat(response.hits().total().value()).isEqualTo(size);
+            assertThat(response.hits().total().value()).isLessThan(size);
         }
     }
 
@@ -452,9 +444,9 @@ class EsClientIT {
                                 .number(nrq -> nrq.field("foo").gte(0.0).lte(1.0))
                         ))
                 , ObjectNode.class);
-        assertNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
-        assertEquals("1", response.hits().hits().get(0).id());
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(1);
+        assertThat(response.hits().hits().get(0).id()).isEqualTo("1");
     }
 
     @Test
@@ -477,18 +469,20 @@ class EsClientIT {
         });
         logger.debug("bulk executed in {} ms {} errors", response.took(), response.errors() ? "with" : "without");
         if (response.errors()) {
-            response.items().stream().filter(p -> p.error() != null)
-                    .forEach(item -> {
-                        assertNotNull(item.id());
-                        assertNotNull(item.error().reason());
+            assertThat(response.items())
+                    .filteredOn(item -> item.error() != null)
+                    .allSatisfy(item -> {
+                        assertThat(item.id()).isNotNull();
+                        assertThat(item.error()).isNotNull();
+                        assertThat(item.error().reason()).isNotNull();
                         logger.trace("Error {} for id {}", item.error().reason(), item.id());
                     });
         }
 
         client.indices().refresh(rr -> rr.index(indexName));
         final SearchResponse<Void> searchResponse = client.search(sr -> sr.index(indexName), Void.class);
-        assertNotNull(searchResponse.hits().total());
-        assertEquals(goodData.get(), searchResponse.hits().total().value());
+        assertThat(searchResponse.hits().total()).isNotNull();
+        assertThat(searchResponse.hits().total().value()).isEqualTo(goodData.get());
     }
 
     @Test
@@ -503,21 +497,21 @@ class EsClientIT {
         client.index(ir -> ir.index(indexName).id(p2.getId()).document(p2));
         client.indices().refresh(rr -> rr.index(indexName));
         final SearchResponse<Person> response = client.search(sr -> sr.index(indexName), Person.class);
-        for (final Hit<Person> hit : response.hits().hits()) {
-            assertNotNull(hit.id());
-            assertNotNull(hit.source());
-            assertEquals(hit.id(), hit.source().getId());
-            assertNotNull(hit.source().getName());
-        }
+        assertThat(response.hits()).isNotNull();
+        assertThat(response.hits().hits()).allSatisfy(hit -> {
+            assertThat(hit.id()).isNotNull();
+            assertThat(hit.source()).isNotNull();
+            assertThat(hit.source().getId()).isEqualTo(hit.id());
+            assertThat(hit.source().getName()).isNotNull();
+        });
     }
 
     @Test
     void reindex() throws IOException {
         // Check the error is thrown when the source index does not exist
-        final ElasticsearchException exception = assertThrows(ElasticsearchException.class,
-                () -> client.reindex(rr -> rr
-                        .source(s -> s.index(PREFIX + "does-not-exists")).dest(d -> d.index("foo"))));
-        assertEquals(404, exception.status());
+        assertThatThrownBy(() -> client.reindex(rr -> rr
+                .source(s -> s.index(PREFIX + "does-not-exists")).dest(d -> d.index("foo"))))
+                .isInstanceOfSatisfying(ElasticsearchException.class, e -> assertThat(e.status()).isEqualTo(404));
 
         // A regular reindex operation
         setAndRemoveIndex(indexName + "-dest");
@@ -526,7 +520,7 @@ class EsClientIT {
         client.indices().refresh(rr -> rr.index(indexName));
         final ReindexResponse reindexResponse = client.reindex(rr -> rr
                 .source(s -> s.index(indexName)).dest(d -> d.index(indexName + "-dest")));
-        assertEquals(1, reindexResponse.total());
+        assertThat(reindexResponse.total()).isEqualTo(1);
     }
 
     @Test
@@ -558,16 +552,17 @@ class EsClientIT {
                 )
         ), Person.class);
 
-        assertNotNull(response.hits().total());
-        assertEquals(2, response.hits().total().value());
-        final Hit<Person> hit1 = response.hits().hits().get(0);
-        assertEquals("1", hit1.id());
-        assertEquals(1, hit1.sort().size());
-        assertEquals(0.0, hit1.sort().get(0).doubleValue());
-        final Hit<Person> hit2 = response.hits().hits().get(1);
-        assertEquals("2", hit2.id());
-        assertEquals(1, hit2.sort().size());
-        assertEquals(8187.4318605250455, hit2.sort().get(0).doubleValue());
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(2);
+        assertThat(response.hits().hits()).satisfiesExactly(hit1 -> {
+            assertThat(hit1.id()).isEqualTo("1");
+            assertThat(hit1.sort()).hasSize(1);
+            assertThat(hit1.sort().get(0).doubleValue()).isEqualTo(0.0);
+        }, hit2 -> {
+            assertThat(hit2.id()).isEqualTo("2");
+            assertThat(hit2.sort()).hasSize(1);
+            assertThat(hit2.sort().get(0).doubleValue()).isEqualTo(8187.4318605250455);
+        });
     }
 
     @Test
@@ -594,10 +589,9 @@ class EsClientIT {
                         )))
                 , Person.class);
 
-        assertNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
-        Hit<Person> hit1 = response.hits().hits().get(0);
-        assertEquals("1", hit1.id());
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(1);
+        assertThat(response.hits().hits()).satisfiesExactly(hit -> assertThat(hit.id()).isEqualTo("1"));
     }
 
     @Test
@@ -620,8 +614,8 @@ class EsClientIT {
                     }
                     return null;
                 });
-        assertNull(future.get());
-        assertTrue(timeoutException.get());
+        assertThat(future.get()).isNull();
+        assertThat(timeoutException.get()).isTrue();
 
         timeoutException.set(false);
         final SearchResponse<Void> response = asyncClient.search(sr -> sr
@@ -638,39 +632,36 @@ class EsClientIT {
                     return null;
                 })
                 .get();
-        assertFalse(timeoutException.get());
-        assertNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
+        assertThat(timeoutException.get()).isFalse();
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(1);
     }
 
     @Test
     void catApi() throws IOException {
         final ThreadPoolResponse threadPool = client.cat().threadPool();
-        assertNotNull(threadPool);
-        for (final ThreadPoolRecord record : threadPool.threadPools()) {
-            logger.debug("threadPool = {}", record);
-            assertNotNull(record.nodeName());
-            assertNotNull(record.name());
-            assertNotNull(record.active());
-            assertNotNull(record.queue());
-            assertNotNull(record.rejected());
-        }
+        assertThat(threadPool).isNotNull();
+        assertThat(threadPool.threadPools()).allSatisfy(record -> {
+            assertThat(record.nodeName()).isNotNull();
+            assertThat(record.name()).isNotNull();
+            assertThat(record.active()).isNotNull();
+            assertThat(record.queue()).isNotNull();
+            assertThat(record.rejected()).isNotNull();
+        });
         final IndicesResponse indices = client.cat().indices();
-        assertNotNull(indices);
-        for (final IndicesRecord record : indices.indices()) {
-            logger.debug("index = {}", record);
-            assertNotNull(record.index());
-            assertNotNull(record.docsCount());
-            assertNotNull(record.docsDeleted());
-        }
+        assertThat(indices).isNotNull();
+        assertThat(indices.indices()).allSatisfy(record -> {
+            assertThat(record.index()).isNotNull();
+            assertThat(record.docsCount()).isNotNull();
+            assertThat(record.docsDeleted()).isNotNull();
+        });
         final ShardsResponse shards = client.cat().shards();
-        assertNotNull(shards);
-        for (final ShardsRecord record : shards.shards()) {
-            logger.debug("shard = {}", record);
-            assertNotNull(record.index());
-            assertNotNull(record.state());
-            assertNotNull(record.prirep());
-        }
+        assertThat(shards).isNotNull();
+        assertThat(shards.shards()).allSatisfy(record -> {
+            assertThat(record.index()).isNotNull();
+            assertThat(record.state()).isIn("STARTED", "UNASSIGNED");
+            assertThat(record.prirep()).isIn("p", "r");
+        });
     }
 
     @Test
@@ -689,7 +680,7 @@ class EsClientIT {
                             )
                     )
             );
-            assertTrue(response.acknowledged());
+            assertThat(response.acknowledged()).isTrue();
         }
         {
             final PutPipelineResponse response = client.ingest().putPipeline(pr -> pr
@@ -702,7 +693,7 @@ class EsClientIT {
                             )
                     )
             );
-            assertTrue(response.acknowledged());
+            assertThat(response.acknowledged()).isTrue();
         }
         {
             final SimulateResponse response = client.ingest().simulate(sir -> sir
@@ -711,11 +702,16 @@ class EsClientIT {
                             .source(JsonData.fromJson("{\"foo\":\"baz\"}"))
                     )
             );
-            assertEquals(1, response.docs().size());
-            final DocumentSimulation doc = response.docs().get(0).doc();
-            assertNotNull(doc);
-            assertNotNull(doc.source());
-            assertEquals("bar", doc.source().get("foo").to(String.class));
+            assertThat(response.docs())
+                    .hasSize(1)
+                    .allSatisfy(doc -> {
+                        assertThat(doc.doc()).isNotNull();
+                        assertThat(doc.doc().source()).isNotNull();
+                        assertThat(doc.doc().source()).allSatisfy((key, value) -> {
+                            assertThat(key).isEqualTo("foo");
+                            assertThat(value).satisfies(jsonData -> assertThat(jsonData.to(String.class)).isEqualTo("bar"));
+                        });
+                    });
         }
     }
 
@@ -724,7 +720,9 @@ class EsClientIT {
         client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
         client.indices().refresh(rr -> rr.index(indexName));
         final GetSourceResponse<ObjectNode> source = client.getSource(gsr -> gsr.index(indexName).id("1"), ObjectNode.class);
-        assertEquals("{\"foo\":\"bar\"}", source.source().toString());
+        assertThat(source.source())
+                .isNotNull()
+                .satisfies(jsonData -> assertThat(jsonData.toString()).isEqualTo("{\"foo\":\"bar\"}"));
     }
 
     @Test
@@ -732,19 +730,19 @@ class EsClientIT {
         client.index(ir -> ir.index(indexName).id("1").withJson(new StringReader("{\"foo\":\"bar\"}")));
         client.indices().refresh(rr -> rr.index(indexName));
         final SearchResponse<Void> response1 = client.search(sr -> sr.index(indexName), Void.class);
-        assertNotNull(response1.hits().total());
-        assertEquals(1L, response1.hits().total().value());
+        assertThat(response1.hits().total()).isNotNull();
+        assertThat(response1.hits().total().value()).isEqualTo(1);
         final DeleteByQueryResponse deleteByQueryResponse = client.deleteByQuery(dbq -> dbq
                 .index(indexName)
                 .query(q -> q
                         .match(mq -> mq
                                 .field("foo")
                                 .query("bar"))));
-        assertEquals(1L, deleteByQueryResponse.deleted());
+        assertThat(deleteByQueryResponse.deleted()).isEqualTo(1);
         client.indices().refresh(rr -> rr.index(indexName));
         final SearchResponse<Void> response2 = client.search(sr -> sr.index(indexName), Void.class);
-        assertNotNull(response2.hits().total());
-        assertEquals(0L, response2.hits().total().value());
+        assertThat(response2.hits().total()).isNotNull();
+        assertThat(response2.hits().total().value()).isEqualTo(0);
     }
 
     @Test
@@ -756,8 +754,9 @@ class EsClientIT {
                         .source(src -> src.scriptString("ctx._source.show_count += 1"))
         ), ObjectNode.class);
         final GetResponse<ObjectNode> response = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
-        assumeNotNull(response.source());
-        assertEquals("{\"show_count\":1}", response.source().toString());
+        assertThat(response.source())
+                .isNotNull()
+                .satisfies(o -> assertThat(o.toString()).isEqualTo("{\"show_count\":1}"));
     }
 
     @Test
@@ -772,7 +771,7 @@ class EsClientIT {
                             )
                     )
             );
-            assertTrue(response.acknowledged());
+            assertThat(response.acknowledged()).isTrue();
         }
 
         {
@@ -785,7 +784,7 @@ class EsClientIT {
                             )
                     )
             );
-            assertTrue(response.acknowledged());
+            assertThat(response.acknowledged()).isTrue();
         }
     }
 
@@ -814,7 +813,7 @@ class EsClientIT {
                         )
                 )
         );
-        assertTrue(response.acknowledged());
+        assertThat(response.acknowledged()).isTrue();
     }
 
     @Test
@@ -839,7 +838,7 @@ class EsClientIT {
         );
 
         // We are expecting an exception as the model is not deployed
-        final ElasticsearchException exception = assertThrows(ElasticsearchException.class, () -> {
+        assertThatThrownBy(() -> {
             // Search
             client.search(sr -> sr
                     .index(indexName)
@@ -848,9 +847,12 @@ class EsClientIT {
                             .inferenceId("elser-v2-test")
                             .query("How to avoid muscle soreness after running?")
                     )), ObjectNode.class);
-        });
-        assertEquals("current license is non-compliant for [inference]", exception.error().reason());
-        assertEquals(403, exception.status());
+        })
+                .withFailMessage("We are expecting an exception as the model is not deployed")
+                .isInstanceOfSatisfying(ElasticsearchException.class, exception -> {
+                    assertThat(exception.error().reason()).isEqualTo("current license is non-compliant for [inference]");
+                    assertThat(exception.status()).isEqualTo(403);
+                });
     }
 
     @Test
@@ -858,7 +860,7 @@ class EsClientIT {
         try {
             client.ilm().deleteLifecycle(dlr -> dlr.name(indexName + "-ilm"));
         } catch (IOException | ElasticsearchException ignored) { }
-        client.ilm().putLifecycle(plr -> plr
+        PutLifecycleResponse response = client.ilm().putLifecycle(plr -> plr
                 .name(indexName + "-ilm")
                 .policy(p -> p
                         .phases(ph -> ph
@@ -873,6 +875,7 @@ class EsClientIT {
                         )
                 )
         );
+        assertThat(response.acknowledged()).isTrue();
     }
 
     @Test
@@ -884,9 +887,9 @@ class EsClientIT {
                         .index(indexName)
                         .query(q -> q.exists(eq -> eq.field("bar")))
                 , Void.class);
-        assertNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
-        assertEquals("2", response.hits().hits().get(0).id());
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(1);
+        assertThat(response.hits().hits()).satisfiesExactly(hit -> assertThat(hit.id()).isEqualTo("2"));
     }
 
     @Test
@@ -903,24 +906,45 @@ class EsClientIT {
                                 )
                         )
                 , Void.class);
-        assertNotNull(response.aggregations().get("country"));
-        assertNotNull(response.aggregations().get("country").sterms());
-        assertNotNull(response.aggregations().get("country").sterms().buckets());
-        assertEquals(3, response.aggregations().get("country").sterms().buckets().array().size());
-        final StringTermsBucket country = response.aggregations().get("country").sterms().buckets().array().get(0);
-        assertEquals("france", country.key().stringValue());
-        assertNotNull(country.aggregations().get("state"));
-        assertNotNull(country.aggregations().get("state").sterms());
-        assertNotNull(country.aggregations().get("state").sterms().buckets());
-        assertEquals(1, country.aggregations().get("state").sterms().buckets().array().size());
-        final StringTermsBucket state = country.aggregations().get("state").sterms().buckets().array().get(0);
-        assertEquals("paris", state.key().stringValue());
-        assertNotNull(state.aggregations().get("city"));
-        assertNotNull(state.aggregations().get("city").sterms());
-        assertNotNull(state.aggregations().get("city").sterms().buckets());
-        assertEquals(1, state.aggregations().get("city").sterms().buckets().array().size());
-        final StringTermsBucket city = state.aggregations().get("city").sterms().buckets().array().get(0);
-        assertEquals("paris", city.key().stringValue());
+
+        assertThat(response.aggregations())
+                .isNotNull()
+                .hasEntrySatisfying("country", countries -> {
+                    assertThat(countries.sterms()).isNotNull();
+                    assertThat(countries.sterms().buckets()).isNotNull();
+                    assertThat(countries.sterms().buckets().array())
+                            .hasSize(3)
+                            .anySatisfy(country -> {
+                                assertThat(country.key()).isNotNull();
+                                assertThat(country.key().stringValue()).isEqualTo("france");
+                                assertThat(country.docCount()).isEqualTo(1);
+                                assertThat(country.aggregations())
+                                        .hasEntrySatisfying("state", state -> {
+                                            assertThat(state.sterms()).isNotNull();
+                                            assertThat(state.sterms().buckets()).isNotNull();
+                                            assertThat(state.sterms().buckets().array())
+                                                    .hasSize(1)
+                                                    .satisfiesExactly(stateBucket -> {
+                                                        assertThat(stateBucket.key()).isNotNull();
+                                                        assertThat(stateBucket.key().stringValue()).isEqualTo("paris");
+                                                        assertThat(stateBucket.docCount()).isEqualTo(1);
+                                                        assertThat(stateBucket.aggregations())
+                                                                .containsKey("city")
+                                                                .hasEntrySatisfying("city", city -> {
+                                                                    assertThat(city.sterms()).isNotNull();
+                                                                    assertThat(city.sterms().buckets()).isNotNull();
+                                                                    assertThat(city.sterms().buckets().array())
+                                                                            .hasSize(1)
+                                                                            .satisfiesExactly(cityBucket -> {
+                                                                                assertThat(cityBucket.key()).isNotNull();
+                                                                                assertThat(cityBucket.key().stringValue()).isEqualTo("paris");
+                                                                                assertThat(cityBucket.docCount()).isEqualTo(1);
+                                                                            });
+                                                                });
+                                                    });
+                                        });
+                            });
+                });
     }
 
     @Test
@@ -955,25 +979,22 @@ class EsClientIT {
                 //  "values" : [ [ "David" ] ]
                 //}
                 final ObjectMapper mapper = new ObjectMapper();
-                final JsonNode node = mapper.readTree(is);
-                assertNotNull(node);
-                assertEquals(4, node.size());
-                assertEquals(1, node.get("columns").size());
-                assertEquals("name", node.get("columns").get(0).get("name").asText());
-                assertEquals(1, node.get("values").size());
-                assertEquals("David", node.get("values").get(0).get(0).asText());
-                assertTrue(node.get("took").asInt() > 0);
-                assertFalse(node.get("is_partial").asBoolean());
+                final JsonNode jsonNode = mapper.readTree(is);
+                assertThat(jsonNode).isNotNull().hasSize(4);
+                assertThat(jsonNode.get("columns")).isNotNull().hasSize(1).first().satisfies(column -> assertThat(column.get("name").asText()).isEqualTo("name"));
+                assertThat(jsonNode.get("values")).isNotNull().hasSize(1).first().satisfies(value -> assertThat(value).hasSize(1).first().satisfies(singleValue -> assertThat(singleValue.asText()).isEqualTo("David")));
+                assertThat(jsonNode.get("took").asInt()).isGreaterThan(0);
+                assertThat(jsonNode.get("is_partial").asBoolean()).isFalse();
             }
         }
 
         {
             // Using the JDBC ResultSet ES|QL API
             try (final ResultSet resultSet = client.esql().query(ResultSetEsqlAdapter.INSTANCE, query)) {
-                assertTrue(resultSet.next());
-                assertEquals("David", resultSet.getString(1));
-            } catch (final JsonpMappingException e) {
-                // This is expected as we have this issue https://github.com/elastic/elasticsearch-java/pull/903
+                assertThat(resultSet).isNotNull().satisfies(resultSetResult -> {
+                    assertThat(resultSetResult.next()).isTrue();
+                    assertThat(resultSetResult.getString("name")).isEqualTo("David");
+                });
             }
         }
 
@@ -981,8 +1002,8 @@ class EsClientIT {
             // Using the Object ES|QL API
             final Iterable<Person> persons = client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
             for (final Person person : persons) {
-                assertNull(person.getId());
-                assertNotNull(person.getName());
+                assertThat(person.getId()).isNull();
+                assertThat(person.getName()).isNotNull();
             }
         }
 
@@ -1001,35 +1022,35 @@ class EsClientIT {
                             Map.of("name", "David")
                     );
             for (final Person person : persons) {
-                assertNull(person.getId());
-                assertNotNull(person.getName());
+                assertThat(person.getId()).isNull();
+                assertThat(person.getName()).isNotNull();
             }
         }
     }
 
     /**
      * This one is failing for now. So we are expecting a failure.
-     * When updating to 8.15.1, it should fix it.
+     * When updating to 8.15.1, it should fix it. (<a href="https://github.com/elastic/elasticsearch-java/issues/865">865</a>)
      */
     @Test
     void callHotThreads() {
-        assertThrows(TransportException.class, () -> client.nodes().hotThreads());
+        assertThatThrownBy(() -> client.nodes().hotThreads()).isInstanceOf(TransportException.class);
     }
 
     @Test
     void withAliases() throws IOException {
         setAndRemoveIndex(indexName + "-v2");
-        assertTrue(client.indices().create(cir -> cir.index(indexName)
-                .aliases(indexName + "_alias", a -> a)).acknowledged());
-        assertTrue(client.indices().create(cir -> cir.index(indexName + "-v2")).acknowledged());
+        assertThat(client.indices().create(cir -> cir.index(indexName)
+                .aliases(indexName + "_alias", a -> a)).acknowledged()).isTrue();
+        assertThat(client.indices().create(cir -> cir.index(indexName + "-v2")).acknowledged()).isTrue();
 
         // Check the alias existence by its name
-        assertTrue(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
+        assertThat(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value()).isTrue();
 
         // Check we have one alias on indexName
-        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases().size());
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases()).hasSize(1);
         // Check we have no alias on indexName-v2
-        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases().size());
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases()).hasSize(0);
 
         // Switch the alias indexName_alias from indexName to indexName-v2
         client.indices().updateAliases(ua -> ua
@@ -1038,18 +1059,18 @@ class EsClientIT {
         );
 
         // Check we have no alias on indexName
-        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases().size());
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases()).hasSize(0);
         // Check we have one alias on indexName-v2
-        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases().size());
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases()).hasSize(1);
 
         // Check the alias existence by its name
-        assertTrue(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
+        assertThat(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value()).isTrue();
 
         // Delete the alias
         client.indices().deleteAlias(da -> da.name(indexName + "_alias").index("*"));
 
         // Check the alias non-existence by its name
-        assertFalse(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
+        assertThat(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value()).isFalse();
     }
 
     @Test
@@ -1072,8 +1093,8 @@ class EsClientIT {
         , Void.class);
 
         assumeNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
-        assertEquals(0.4063275, response.hits().hits().get(0).score());
+        assertThat(response.hits().total().value()).isEqualTo(1);
+        assertThat(response.hits().hits().get(0).score()).isEqualTo(0.4063275);
     }
 
     @Test
@@ -1112,9 +1133,10 @@ class EsClientIT {
                                                 .gte("2024-10-03T00:00:00.000Z"))))
                         ))
                 , Void.class);
-        assertNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
-        assertEquals("3", response.hits().hits().get(0).id());
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(1);
+        assertThat(response.hits().hits()).hasSize(1);
+        assertThat(response.hits().hits().get(0).id()).isEqualTo("3");
     }
 
     /**
