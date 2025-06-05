@@ -985,9 +985,7 @@ class EsClientIT {
                     assertThat(column.get("name").asText()).isEqualTo("name");
                 });
                 assertThat(jsonNode.get("values")).isNotNull().hasSize(1).first().satisfies(value -> {
-                    assertThat(value).hasSize(1).first().satisfies(singleValue -> {
-                        assertThat(singleValue.asText()).isEqualTo("David");
-                    });
+                    assertThat(value).hasSize(1).first().satisfies(singleValue -> assertThat(singleValue.asText()).isEqualTo("David"));
                 });
                 assertThat(jsonNode.get("took").asInt()).isGreaterThan(0);
                 assertThat(jsonNode.get("is_partial").asBoolean()).isFalse();
