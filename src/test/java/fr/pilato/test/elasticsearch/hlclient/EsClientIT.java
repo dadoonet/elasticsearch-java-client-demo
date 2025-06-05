@@ -1154,9 +1154,10 @@ class EsClientIT {
                                                 .gte("2024-10-03T00:00:00.000Z"))))
                         ))
                 , Void.class);
-        assertNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
-        assertEquals("3", response.hits().hits().get(0).id());
+        assertThat(response.hits().total()).isNotNull();
+        assertThat(response.hits().total().value()).isEqualTo(1);
+        assertThat(response.hits().hits()).hasSize(1);
+        assertThat(response.hits().hits().get(0).id()).isEqualTo("3");
     }
 
     /**
