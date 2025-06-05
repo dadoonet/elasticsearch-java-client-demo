@@ -994,25 +994,28 @@ class EsClientIT {
                 //  "values" : [ [ "David" ] ]
                 //}
                 final ObjectMapper mapper = new ObjectMapper();
-                final JsonNode node = mapper.readTree(is);
-                assertNotNull(node);
-                assertEquals(4, node.size());
-                assertEquals(1, node.get("columns").size());
-                assertEquals("name", node.get("columns").get(0).get("name").asText());
-                assertEquals(1, node.get("values").size());
-                assertEquals("David", node.get("values").get(0).get(0).asText());
-                assertTrue(node.get("took").asInt() > 0);
-                assertFalse(node.get("is_partial").asBoolean());
+                final JsonNode jsonNode = mapper.readTree(is);
+                assertThat(jsonNode).isNotNull().hasSize(4);
+                assertThat(jsonNode.get("columns")).isNotNull().hasSize(1).first().satisfies(column -> {
+                    assertThat(column.get("name").asText()).isEqualTo("name");
+                });
+                assertThat(jsonNode.get("values")).isNotNull().hasSize(1).first().satisfies(value -> {
+                    assertThat(value).hasSize(1).first().satisfies(singleValue -> {
+                        assertThat(singleValue.asText()).isEqualTo("David");
+                    });
+                });
+                assertThat(jsonNode.get("took").asInt()).isGreaterThan(0);
+                assertThat(jsonNode.get("is_partial").asBoolean()).isFalse();
             }
         }
 
         {
             // Using the JDBC ResultSet ES|QL API
             try (final ResultSet resultSet = client.esql().query(ResultSetEsqlAdapter.INSTANCE, query)) {
-                assertTrue(resultSet.next());
-                assertEquals("David", resultSet.getString(1));
-            } catch (final JsonpMappingException e) {
-                // This is expected as we have this issue https://github.com/elastic/elasticsearch-java/pull/903
+                assertThat(resultSet).isNotNull().satisfies(resultSetResult -> {
+                    assertThat(resultSetResult.next()).isTrue();
+                    assertThat(resultSetResult.getString("name")).isEqualTo("David");
+                });
             }
         }
 
@@ -1020,8 +1023,8 @@ class EsClientIT {
             // Using the Object ES|QL API
             final Iterable<Person> persons = client.esql().query(ObjectsEsqlAdapter.of(Person.class), query);
             for (final Person person : persons) {
-                assertNull(person.getId());
-                assertNotNull(person.getName());
+                assertThat(person.getId()).isNull();
+                assertThat(person.getName()).isNotNull();
             }
         }
 
@@ -1040,8 +1043,8 @@ class EsClientIT {
                             Map.of("name", "David")
                     );
             for (final Person person : persons) {
-                assertNull(person.getId());
-                assertNotNull(person.getName());
+                assertThat(person.getId()).isNull();
+                assertThat(person.getName()).isNotNull();
             }
         }
     }
