@@ -1114,8 +1114,8 @@ class EsClientIT {
         , Void.class);
 
         assumeNotNull(response.hits().total());
-        assertEquals(1, response.hits().total().value());
-        assertEquals(0.4063275, response.hits().hits().get(0).score());
+        assertThat(response.hits().total().value()).isEqualTo(1);
+        assertThat(response.hits().hits().get(0).score()).isEqualTo(0.4063275);
     }
 
     @Test
