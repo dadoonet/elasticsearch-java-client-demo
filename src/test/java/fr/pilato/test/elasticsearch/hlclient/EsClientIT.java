@@ -1051,27 +1051,27 @@ class EsClientIT {
 
     /**
      * This one is failing for now. So we are expecting a failure.
-     * When updating to 8.15.1, it should fix it.
+     * When updating to 8.15.1, it should fix it. (<a href="https://github.com/elastic/elasticsearch-java/issues/865">865</a>)
      */
     @Test
     void callHotThreads() {
-        assertThrows(TransportException.class, () -> client.nodes().hotThreads());
+        assertThatThrownBy(() -> client.nodes().hotThreads()).isInstanceOf(TransportException.class);
     }
 
     @Test
     void withAliases() throws IOException {
         setAndRemoveIndex(indexName + "-v2");
-        assertTrue(client.indices().create(cir -> cir.index(indexName)
-                .aliases(indexName + "_alias", a -> a)).acknowledged());
-        assertTrue(client.indices().create(cir -> cir.index(indexName + "-v2")).acknowledged());
+        assertThat(client.indices().create(cir -> cir.index(indexName)
+                .aliases(indexName + "_alias", a -> a)).acknowledged()).isTrue();
+        assertThat(client.indices().create(cir -> cir.index(indexName + "-v2")).acknowledged()).isTrue();
 
         // Check the alias existence by its name
-        assertTrue(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
+        assertThat(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value()).isTrue();
 
         // Check we have one alias on indexName
-        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases().size());
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases()).hasSize(1);
         // Check we have no alias on indexName-v2
-        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases().size());
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases()).hasSize(0);
 
         // Switch the alias indexName_alias from indexName to indexName-v2
         client.indices().updateAliases(ua -> ua
@@ -1080,18 +1080,18 @@ class EsClientIT {
         );
 
         // Check we have no alias on indexName
-        assertEquals(0, client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases().size());
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases()).hasSize(0);
         // Check we have one alias on indexName-v2
-        assertEquals(1, client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases().size());
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases()).hasSize(1);
 
         // Check the alias existence by its name
-        assertTrue(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
+        assertThat(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value()).isTrue();
 
         // Delete the alias
         client.indices().deleteAlias(da -> da.name(indexName + "_alias").index("*"));
 
         // Check the alias non-existence by its name
-        assertFalse(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value());
+        assertThat(client.indices().existsAlias(ga -> ga.name(indexName + "_alias")).value()).isFalse();
     }
 
     @Test
