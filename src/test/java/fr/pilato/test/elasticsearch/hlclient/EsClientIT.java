@@ -26,26 +26,19 @@ import co.elastic.clients.elasticsearch._helpers.bulk.BulkListener;
 import co.elastic.clients.elasticsearch._helpers.esql.jdbc.ResultSetEsqlAdapter;
 import co.elastic.clients.elasticsearch._helpers.esql.objects.ObjectsEsqlAdapter;
 import co.elastic.clients.elasticsearch._types.*;
-import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket;
 import co.elastic.clients.elasticsearch.cat.IndicesResponse;
 import co.elastic.clients.elasticsearch.cat.ShardsResponse;
 import co.elastic.clients.elasticsearch.cat.ThreadPoolResponse;
-import co.elastic.clients.elasticsearch.cat.indices.IndicesRecord;
-import co.elastic.clients.elasticsearch.cat.shards.ShardsRecord;
-import co.elastic.clients.elasticsearch.cat.thread_pool.ThreadPoolRecord;
 import co.elastic.clients.elasticsearch.cluster.PutComponentTemplateResponse;
 import co.elastic.clients.elasticsearch.core.*;
-import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.ilm.PutLifecycleResponse;
 import co.elastic.clients.elasticsearch.indices.*;
-import co.elastic.clients.elasticsearch.ingest.DocumentSimulation;
 import co.elastic.clients.elasticsearch.ingest.PutPipelineResponse;
 import co.elastic.clients.elasticsearch.ingest.SimulateResponse;
 import co.elastic.clients.elasticsearch.sql.TranslateResponse;
 import co.elastic.clients.elasticsearch.transform.GetTransformResponse;
 import co.elastic.clients.elasticsearch.transform.PutTransformResponse;
 import co.elastic.clients.json.JsonData;
-import co.elastic.clients.json.JsonpMappingException;
 import co.elastic.clients.transport.TransportException;
 import co.elastic.clients.transport.endpoints.BinaryResponse;
 import co.elastic.clients.util.BinaryData;
@@ -79,7 +72,6 @@ import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCa
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.Assume.assumeNotNull;
-import static org.junit.jupiter.api.Assertions.*;
 
 class EsClientIT {
 
@@ -364,7 +356,7 @@ class EsClientIT {
         assertThat(response.aggregations().get("top10foo").sterms().buckets()).isNotNull();
         assertThat(response.aggregations().get("top10foo").sterms().buckets().array())
                 .hasSize(1)
-                .allSatisfy(bucket -> {;
+                .allSatisfy(bucket -> {
             assertThat(bucket.key()).isNotNull();
             assertThat(bucket.key().stringValue()).isEqualTo("bar");
             assertThat(bucket.docCount()).isEqualTo(2);
@@ -517,10 +509,9 @@ class EsClientIT {
     @Test
     void reindex() throws IOException {
         // Check the error is thrown when the source index does not exist
-        final ElasticsearchException exception = assertThrows(ElasticsearchException.class,
-                () -> client.reindex(rr -> rr
-                        .source(s -> s.index(PREFIX + "does-not-exists")).dest(d -> d.index("foo"))));
-        assertThat(exception.status()).isEqualTo(404);
+        assertThatThrownBy(() -> client.reindex(rr -> rr
+                .source(s -> s.index(PREFIX + "does-not-exists")).dest(d -> d.index("foo"))))
+                .isInstanceOfSatisfying(ElasticsearchException.class, e -> assertThat(e.status()).isEqualTo(404));
 
         // A regular reindex operation
         setAndRemoveIndex(indexName + "-dest");
@@ -718,9 +709,7 @@ class EsClientIT {
                         assertThat(doc.doc().source()).isNotNull();
                         assertThat(doc.doc().source()).allSatisfy((key, value) -> {
                             assertThat(key).isEqualTo("foo");
-                            assertThat(value).satisfies(jsonData -> {
-                                assertThat(jsonData.to(String.class)).isEqualTo("bar");
-                            });
+                            assertThat(value).satisfies(jsonData -> assertThat(jsonData.to(String.class)).isEqualTo("bar"));
                         });
                     });
         }
@@ -733,9 +722,7 @@ class EsClientIT {
         final GetSourceResponse<ObjectNode> source = client.getSource(gsr -> gsr.index(indexName).id("1"), ObjectNode.class);
         assertThat(source.source())
                 .isNotNull()
-                .satisfies(jsonData -> {
-                    assertThat(jsonData.toString()).isEqualTo("{\"foo\":\"bar\"}");
-                });
+                .satisfies(jsonData -> assertThat(jsonData.toString()).isEqualTo("{\"foo\":\"bar\"}"));
     }
 
     @Test
@@ -751,7 +738,7 @@ class EsClientIT {
                         .match(mq -> mq
                                 .field("foo")
                                 .query("bar"))));
-        assertEquals(1L, deleteByQueryResponse.deleted());
+        assertThat(deleteByQueryResponse.deleted()).isEqualTo(1);
         client.indices().refresh(rr -> rr.index(indexName));
         final SearchResponse<Void> response2 = client.search(sr -> sr.index(indexName), Void.class);
         assertThat(response2.hits().total()).isNotNull();
@@ -769,9 +756,7 @@ class EsClientIT {
         final GetResponse<ObjectNode> response = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
         assertThat(response.source())
                 .isNotNull()
-                .satisfies(o -> {
-                    assertThat(o.toString()).isEqualTo("{\"show_count\":1}");
-                });
+                .satisfies(o -> assertThat(o.toString()).isEqualTo("{\"show_count\":1}"));
     }
 
     @Test
