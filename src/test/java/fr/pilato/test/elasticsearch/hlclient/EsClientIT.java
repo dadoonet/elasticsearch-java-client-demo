@@ -31,6 +31,7 @@ import co.elastic.clients.elasticsearch.cat.ShardsResponse;
 import co.elastic.clients.elasticsearch.cat.ThreadPoolResponse;
 import co.elastic.clients.elasticsearch.cluster.PutComponentTemplateResponse;
 import co.elastic.clients.elasticsearch.core.*;
+import co.elastic.clients.elasticsearch.core.search.HighlightField;
 import co.elastic.clients.elasticsearch.ilm.PutLifecycleResponse;
 import co.elastic.clients.elasticsearch.indices.*;
 import co.elastic.clients.elasticsearch.ingest.PutPipelineResponse;
@@ -43,6 +44,7 @@ import co.elastic.clients.transport.TransportException;
 import co.elastic.clients.transport.endpoints.BinaryResponse;
 import co.elastic.clients.util.BinaryData;
 import co.elastic.clients.util.ContentType;
+import co.elastic.clients.util.NamedValue;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -328,7 +330,8 @@ class EsClientIT {
         final SearchResponse<Void> response = client.search(sr -> sr
                         .index(indexName)
                         .query(q -> q.match(mq -> mq.field("foo").query("bar")))
-                        .highlight(h -> h.fields("foo", hf -> hf.maxAnalyzedOffset(10)))
+                        .highlight(h -> h
+                                .fields(NamedValue.of("foo", HighlightField.of(hf -> hf.maxAnalyzedOffset(10)))))
                 , Void.class);
         assertThat(response.hits().total()).isNotNull();
         assertThat(response.hits().total().value()).isEqualTo(1);
@@ -969,22 +972,16 @@ class EsClientIT {
         {
             // Using the Raw ES|QL API
             try (final BinaryResponse response = client.esql().query(q -> q.query(query)); InputStream is = response.content()) {
-                // The response object is {
-                //  "took" : 4,
-                //  "is_partial" : false,
-                //  "columns" : [ {
-                //    "name" : "name",
-                //    "type" : "text"
-                //  } ],
-                //  "values" : [ [ "David" ] ]
-                //}
+                // The response object is {"took":173,"is_partial":false,"documents_found":1,"values_loaded":1,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
                 final ObjectMapper mapper = new ObjectMapper();
                 final JsonNode jsonNode = mapper.readTree(is);
-                assertThat(jsonNode).isNotNull().hasSize(4);
+                assertThat(jsonNode).isNotNull().hasSize(6);
                 assertThat(jsonNode.get("columns")).isNotNull().hasSize(1).first().satisfies(column -> assertThat(column.get("name").asText()).isEqualTo("name"));
                 assertThat(jsonNode.get("values")).isNotNull().hasSize(1).first().satisfies(value -> assertThat(value).hasSize(1).first().satisfies(singleValue -> assertThat(singleValue.asText()).isEqualTo("David")));
                 assertThat(jsonNode.get("took").asInt()).isGreaterThan(0);
                 assertThat(jsonNode.get("is_partial").asBoolean()).isFalse();
+                assertThat(jsonNode.get("documents_found").asLong()).isEqualTo(1);
+                assertThat(jsonNode.get("values_loaded").asLong()).isEqualTo(1);
             }
         }
 
