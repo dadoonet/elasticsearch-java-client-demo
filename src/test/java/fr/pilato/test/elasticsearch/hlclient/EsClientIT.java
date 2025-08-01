@@ -972,22 +972,16 @@ class EsClientIT {
         {
             // Using the Raw ES|QL API
             try (final BinaryResponse response = client.esql().query(q -> q.query(query)); InputStream is = response.content()) {
-                // The response object is {
-                //  "took" : 4,
-                //  "is_partial" : false,
-                //  "columns" : [ {
-                //    "name" : "name",
-                //    "type" : "text"
-                //  } ],
-                //  "values" : [ [ "David" ] ]
-                //}
+                // The response object is {"took":173,"is_partial":false,"documents_found":1,"values_loaded":1,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
                 final ObjectMapper mapper = new ObjectMapper();
                 final JsonNode jsonNode = mapper.readTree(is);
-                assertThat(jsonNode).isNotNull().hasSize(4);
+                assertThat(jsonNode).isNotNull().hasSize(6);
                 assertThat(jsonNode.get("columns")).isNotNull().hasSize(1).first().satisfies(column -> assertThat(column.get("name").asText()).isEqualTo("name"));
                 assertThat(jsonNode.get("values")).isNotNull().hasSize(1).first().satisfies(value -> assertThat(value).hasSize(1).first().satisfies(singleValue -> assertThat(singleValue.asText()).isEqualTo("David")));
                 assertThat(jsonNode.get("took").asInt()).isGreaterThan(0);
                 assertThat(jsonNode.get("is_partial").asBoolean()).isFalse();
+                assertThat(jsonNode.get("documents_found").asLong()).isEqualTo(1);
+                assertThat(jsonNode.get("values_loaded").asLong()).isEqualTo(1);
             }
         }
 
