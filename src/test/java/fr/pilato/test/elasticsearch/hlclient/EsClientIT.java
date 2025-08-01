@@ -31,6 +31,7 @@ import co.elastic.clients.elasticsearch.cat.ShardsResponse;
 import co.elastic.clients.elasticsearch.cat.ThreadPoolResponse;
 import co.elastic.clients.elasticsearch.cluster.PutComponentTemplateResponse;
 import co.elastic.clients.elasticsearch.core.*;
+import co.elastic.clients.elasticsearch.core.search.HighlightField;
 import co.elastic.clients.elasticsearch.ilm.PutLifecycleResponse;
 import co.elastic.clients.elasticsearch.indices.*;
 import co.elastic.clients.elasticsearch.ingest.PutPipelineResponse;
@@ -43,6 +44,7 @@ import co.elastic.clients.transport.TransportException;
 import co.elastic.clients.transport.endpoints.BinaryResponse;
 import co.elastic.clients.util.BinaryData;
 import co.elastic.clients.util.ContentType;
+import co.elastic.clients.util.NamedValue;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -328,7 +330,8 @@ class EsClientIT {
         final SearchResponse<Void> response = client.search(sr -> sr
                         .index(indexName)
                         .query(q -> q.match(mq -> mq.field("foo").query("bar")))
-                        .highlight(h -> h.fields("foo", hf -> hf.maxAnalyzedOffset(10)))
+                        .highlight(h -> h
+                                .fields(NamedValue.of("foo", HighlightField.of(hf -> hf.maxAnalyzedOffset(10)))))
                 , Void.class);
         assertThat(response.hits().total()).isNotNull();
         assertThat(response.hits().total().value()).isEqualTo(1);
