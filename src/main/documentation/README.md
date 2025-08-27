@@ -2,7 +2,7 @@
 
 # Elasticsearch Client Java Sample project
 
-https://discuss.elastic.co has many questions about the Elasticsearch Java Client.
+https://discuss.elastic.co has many questions about the Elasticsearch [Java API Client](https://www.elastic.co/docs/reference/elasticsearch/clients/java).
 
 To address those questions, I often attempt to reproduce the issues.
 
@@ -11,7 +11,8 @@ I believe it could be beneficial for many, so I've made the code available here.
 
 You're welcome to contribute your own examples if you'd like.
 
-This repository is tested against Elasticsearch ${elasticsearch.version}.
+This repository is tested against Elasticsearch Server ${elasticsearch.version} using 
+[Elasticsearch Java API Client](https://www.elastic.co/docs/reference/elasticsearch/clients/java) ${elasticsearch-client.version}.
 
 We automatically start a Docker image using the [Elasticsearch module for TestContainers](https://www.testcontainers.org/modules/elasticsearch/).
 
