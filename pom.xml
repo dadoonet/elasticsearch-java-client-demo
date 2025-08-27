@@ -76,6 +76,15 @@
             <version>${elasticsearch-client.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- We fake a dependency for version 9 so we will hopefully benefit from automatic upgrades with dependabot -->
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>rest-api-spec</artifactId>
+            <version>${elasticsearch.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
