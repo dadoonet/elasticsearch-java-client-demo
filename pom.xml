@@ -11,7 +11,7 @@
     <properties>
         <!-- Main dependencies -->
         <elasticsearch.version>9.1.2</elasticsearch.version>
-        <elasticsearch-client.version>9.1.2</elasticsearch-client.version>
+        <elasticsearch-client.version>9.1.3</elasticsearch-client.version>
         <jackson.version>2.19.2</jackson.version>
         <log4j.version>2.25.1</log4j.version>
         <slf4j.version>2.0.17</slf4j.version>
@@ -76,6 +76,15 @@
             <version>${elasticsearch-client.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- We fake a dependency for version 9 so we will hopefully benefit from automatic upgrades with dependabot -->
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>rest-api-spec</artifactId>
+            <version>${elasticsearch.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
