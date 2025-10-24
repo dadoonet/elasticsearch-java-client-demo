@@ -12,7 +12,7 @@ I believe it could be beneficial for many, so I've made the code available here.
 You're welcome to contribute your own examples if you'd like.
 
 This repository is tested against **Elasticsearch Server 9.1.5** using 
-**Elasticsearch Java API Client 9.1.5**.
+**Elasticsearch Java API Client 9.2.0**.
 
 We automatically start a Docker image using the [Elasticsearch module for TestContainers](https://www.testcontainers.org/modules/elasticsearch/).
 
