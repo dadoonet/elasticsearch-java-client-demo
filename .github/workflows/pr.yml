@@ -1,7 +1,7 @@
 name: Build the project
 on: [pull_request]
 jobs:
-  build:
+  build-pr:
     runs-on: ubuntu-latest
     if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
