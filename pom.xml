@@ -12,7 +12,7 @@
         <!-- Main dependencies -->
         <elasticsearch.version>9.2.4</elasticsearch.version>
         <elasticsearch-client.version>9.2.4</elasticsearch-client.version>
-        <jackson.version>2.20.1</jackson.version>
+        <jackson.version>2.21.0</jackson.version>
         <log4j.version>2.25.3</log4j.version>
         <slf4j.version>2.0.17</slf4j.version>
         <junit.version>6.0.2</junit.version>
