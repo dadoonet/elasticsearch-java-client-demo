@@ -10,7 +10,7 @@
 
     <properties>
         <!-- Main dependencies -->
-        <elasticsearch.version>9.2.4</elasticsearch.version>
+        <elasticsearch.version>9.3.0</elasticsearch.version>
         <elasticsearch-client.version>9.3.0</elasticsearch-client.version>
         <jackson.version>2.21.0</jackson.version>
         <log4j.version>2.25.3</log4j.version>
