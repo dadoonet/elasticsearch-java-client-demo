@@ -983,9 +983,9 @@ class EsClientIT {
                 assertThat(jsonNode.get("documents_found").asLong()).isEqualTo(1);
                 assertThat(jsonNode.get("values_loaded").asLong()).isEqualTo(1);
                 // Added in 9.3.0
-                assertThat(jsonNode.get("completion_time_in_millis").asInt()).isGreaterThan(0);
-                assertThat(jsonNode.get("start_time_in_millis").asInt()).isGreaterThan(0);
-                assertThat(jsonNode.get("expiration_time_in_millis").asInt()).isGreaterThan(0);
+                assertThat(jsonNode.get("completion_time_in_millis").asLong()).isGreaterThan(0);
+                assertThat(jsonNode.get("start_time_in_millis").asLong()).isGreaterThan(0);
+                assertThat(jsonNode.get("expiration_time_in_millis").asLong()).isGreaterThan(0);
             }
         }
 
