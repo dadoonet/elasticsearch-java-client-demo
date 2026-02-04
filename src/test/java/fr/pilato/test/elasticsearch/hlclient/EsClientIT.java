@@ -120,7 +120,7 @@ class EsClientIT {
         }
     }
 
-    static private ElasticsearchClient getClient(final String elasticsearchServiceAddress, final byte[] certificate) throws Exception {
+    private static ElasticsearchClient getClient(final String elasticsearchServiceAddress, final byte[] certificate) throws Exception {
         // Create the API client
         final ElasticsearchClient client = ElasticsearchClient.of(b -> b
                 .host(elasticsearchServiceAddress)
@@ -132,7 +132,7 @@ class EsClientIT {
         return client;
     }
 
-    static private ElasticsearchAsyncClient getAsyncClient(final String elasticsearchServiceAddress, final byte[] certificate) throws Exception {
+    private static ElasticsearchAsyncClient getAsyncClient(final String elasticsearchServiceAddress, final byte[] certificate) throws Exception {
         // Create the API client
         final ElasticsearchAsyncClient client = ElasticsearchAsyncClient.of(b -> b
                 .host(elasticsearchServiceAddress)
@@ -144,12 +144,12 @@ class EsClientIT {
         return client;
     }
 
-    List<String> indices;
+    List<String> elasticsearchCreatedIndices;
     String indexName;
     
     @BeforeEach
     void cleanIndexBeforeRun(final TestInfo testInfo) {
-        indices = new ArrayList<>();
+        elasticsearchCreatedIndices = new ArrayList<>();
         final var methodName = testInfo.getTestMethod().orElseThrow().getName();
         indexName = PREFIX + methodName.toLowerCase(Locale.ROOT);
 
@@ -159,7 +159,7 @@ class EsClientIT {
 
     @AfterEach
     void cleanIndexAfterRun() {
-        indices.forEach(this::removeIndex);
+        elasticsearchCreatedIndices.forEach(this::removeIndex);
     }
 
     @Test
@@ -302,7 +302,7 @@ class EsClientIT {
         final var id = "test-get";
         try {
             client.transform().deleteTransform(dtr -> dtr.transformId(id));
-        } catch (ElasticsearchException ignored) { }
+        } catch (ElasticsearchException ignored) { /* Might throw a 404 which we don't care about */ }
         client.index(ir -> ir.index(indexName).id("1")
                 .withJson(new StringReader("{\"foo\":\"bar\"}")));
         client.indices().refresh(rr -> rr.index(indexName));
@@ -644,26 +644,26 @@ class EsClientIT {
     void catApi() throws IOException {
         final ThreadPoolResponse threadPool = client.cat().threadPool();
         assertThat(threadPool).isNotNull();
-        assertThat(threadPool.threadPools()).allSatisfy(record -> {
-            assertThat(record.nodeName()).isNotNull();
-            assertThat(record.name()).isNotNull();
-            assertThat(record.active()).isNotNull();
-            assertThat(record.queue()).isNotNull();
-            assertThat(record.rejected()).isNotNull();
+        assertThat(threadPool.threadPools()).allSatisfy(threadPoolRecord -> {
+            assertThat(threadPoolRecord.nodeName()).isNotNull();
+            assertThat(threadPoolRecord.name()).isNotNull();
+            assertThat(threadPoolRecord.active()).isNotNull();
+            assertThat(threadPoolRecord.queue()).isNotNull();
+            assertThat(threadPoolRecord.rejected()).isNotNull();
         });
         final IndicesResponse indices = client.cat().indices();
         assertThat(indices).isNotNull();
-        assertThat(indices.indices()).allSatisfy(record -> {
-            assertThat(record.index()).isNotNull();
-            assertThat(record.docsCount()).isNotNull();
-            assertThat(record.docsDeleted()).isNotNull();
+        assertThat(indices.indices()).allSatisfy(indicesRecord -> {
+            assertThat(indicesRecord.index()).isNotNull();
+            assertThat(indicesRecord.docsCount()).isNotNull();
+            assertThat(indicesRecord.docsDeleted()).isNotNull();
         });
         final ShardsResponse shards = client.cat().shards();
         assertThat(shards).isNotNull();
-        assertThat(shards.shards()).allSatisfy(record -> {
-            assertThat(record.index()).isNotNull();
-            assertThat(record.state()).isIn("STARTED", "UNASSIGNED");
-            assertThat(record.prirep()).isIn("p", "r");
+        assertThat(shards.shards()).allSatisfy(shardsRecord -> {
+            assertThat(shardsRecord.index()).isNotNull();
+            assertThat(shardsRecord.state()).isIn("STARTED", "UNASSIGNED");
+            assertThat(shardsRecord.prirep()).isIn("p", "r");
         });
     }
 
@@ -672,7 +672,7 @@ class EsClientIT {
         // Define some pipelines
         try {
             client.ingest().deletePipeline(pr -> pr.id("my-pipeline"));
-        } catch (final ElasticsearchException ignored) { }
+        } catch (final ElasticsearchException ignored) { /* Might throw a 404 which we don't care about */ }
         {
             final PutPipelineResponse response = client.ingest().putPipeline(pr -> pr
                     .id("my-pipeline")
@@ -725,7 +725,7 @@ class EsClientIT {
         final GetSourceResponse<ObjectNode> source = client.getSource(gsr -> gsr.index(indexName).id("1"), ObjectNode.class);
         assertThat(source.source())
                 .isNotNull()
-                .satisfies(jsonData -> assertThat(jsonData.toString()).isEqualTo("{\"foo\":\"bar\"}"));
+                .satisfies(jsonData -> assertThat(jsonData).hasToString("{\"foo\":\"bar\"}"));
     }
 
     @Test
@@ -745,7 +745,7 @@ class EsClientIT {
         client.indices().refresh(rr -> rr.index(indexName));
         final SearchResponse<Void> response2 = client.search(sr -> sr.index(indexName), Void.class);
         assertThat(response2.hits().total()).isNotNull();
-        assertThat(response2.hits().total().value()).isEqualTo(0);
+        assertThat(response2.hits().total().value()).isZero();
     }
 
     @Test
@@ -759,7 +759,7 @@ class EsClientIT {
         final GetResponse<ObjectNode> response = client.get(gr -> gr.index(indexName).id("1"), ObjectNode.class);
         assertThat(response.source())
                 .isNotNull()
-                .satisfies(o -> assertThat(o.toString()).isEqualTo("{\"show_count\":1}"));
+                .satisfies(o -> assertThat(o).hasToString("{\"show_count\":1}"));
     }
 
     @Test
@@ -853,8 +853,8 @@ class EsClientIT {
         })
                 .withFailMessage("We are expecting an exception as the model is not deployed")
                 .isInstanceOfSatisfying(ElasticsearchException.class, exception -> {
-                    assertThat(exception.error().reason()).isEqualTo("current license is non-compliant for [inference]");
-                    assertThat(exception.status()).isEqualTo(403);
+                    assertThat(exception.error().reason()).isEqualTo("[elser-v2-test] is not an inference service model or a deployed ml model");
+                    assertThat(exception.status()).isEqualTo(404);
                 });
     }
 
@@ -862,7 +862,7 @@ class EsClientIT {
     void testIlm() throws IOException {
         try {
             client.ilm().deleteLifecycle(dlr -> dlr.name(indexName + "-ilm"));
-        } catch (IOException | ElasticsearchException ignored) { }
+        } catch (IOException | ElasticsearchException ignored) { /* Might throw a 404 which we don't care about */ }
         PutLifecycleResponse response = client.ilm().putLifecycle(plr -> plr
                 .name(indexName + "-ilm")
                 .policy(p -> p
@@ -972,16 +972,20 @@ class EsClientIT {
         {
             // Using the Raw ES|QL API
             try (final BinaryResponse response = client.esql().query(q -> q.query(query)); InputStream is = response.content()) {
-                // The response object is {"took":173,"is_partial":false,"documents_found":1,"values_loaded":1,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
+                // The response object is {"took":221,"is_partial":false,"completion_time_in_millis":1770203889851,"documents_found":1,"values_loaded":1,"start_time_in_millis":1770203889630,"expiration_time_in_millis":1770635889773,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
                 final ObjectMapper mapper = new ObjectMapper();
                 final JsonNode jsonNode = mapper.readTree(is);
-                assertThat(jsonNode).isNotNull().hasSize(6);
+                assertThat(jsonNode).isNotNull().hasSize(9);
                 assertThat(jsonNode.get("columns")).isNotNull().hasSize(1).first().satisfies(column -> assertThat(column.get("name").asText()).isEqualTo("name"));
                 assertThat(jsonNode.get("values")).isNotNull().hasSize(1).first().satisfies(value -> assertThat(value).hasSize(1).first().satisfies(singleValue -> assertThat(singleValue.asText()).isEqualTo("David")));
                 assertThat(jsonNode.get("took").asInt()).isGreaterThan(0);
                 assertThat(jsonNode.get("is_partial").asBoolean()).isFalse();
                 assertThat(jsonNode.get("documents_found").asLong()).isEqualTo(1);
                 assertThat(jsonNode.get("values_loaded").asLong()).isEqualTo(1);
+                // Added in 9.3.0
+                assertThat(jsonNode.get("completion_time_in_millis").asLong()).isGreaterThan(0);
+                assertThat(jsonNode.get("start_time_in_millis").asLong()).isGreaterThan(0);
+                assertThat(jsonNode.get("expiration_time_in_millis").asLong()).isGreaterThan(0);
             }
         }
 
@@ -1047,7 +1051,7 @@ class EsClientIT {
         // Check we have one alias on indexName
         assertThat(client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases()).hasSize(1);
         // Check we have no alias on indexName-v2
-        assertThat(client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases()).hasSize(0);
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases()).isEmpty();
 
         // Switch the alias indexName_alias from indexName to indexName-v2
         client.indices().updateAliases(ua -> ua
@@ -1056,7 +1060,7 @@ class EsClientIT {
         );
 
         // Check we have no alias on indexName
-        assertThat(client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases()).hasSize(0);
+        assertThat(client.indices().getAlias(ga -> ga.index(indexName)).aliases().get(indexName).aliases()).isEmpty();
         // Check we have one alias on indexName-v2
         assertThat(client.indices().getAlias(ga -> ga.index(indexName + "-v2")).aliases().get(indexName + "-v2").aliases()).hasSize(1);
 
@@ -1142,7 +1146,7 @@ class EsClientIT {
      * @param name the index name
      */
     private void setAndRemoveIndex(final String name) {
-        indices.add(name);
+        elasticsearchCreatedIndices.add(name);
         removeIndex(name);
     }
 
@@ -1154,6 +1158,6 @@ class EsClientIT {
         try {
             client.indices().delete(dir -> dir.index(name));
             logger.debug("Index [{}] has been removed", name);
-        } catch (final IOException | ElasticsearchException ignored) { }
+        } catch (final IOException | ElasticsearchException ignored) { /* Might throw a 404 which we don't care about */ }
     }
 }
