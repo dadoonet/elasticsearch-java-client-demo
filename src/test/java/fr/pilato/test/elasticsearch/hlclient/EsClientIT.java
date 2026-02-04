@@ -871,7 +871,7 @@ class EsClientIT {
                                         .actions(a -> a
                                                 .rollover(r -> r
                                                         .maxAge(t -> t.time("5d"))
-                                                        .maxSize("10gb")
+                                                        .maxPrimaryShardSize("10gb")
                                                 )
                                         )
                                 )
