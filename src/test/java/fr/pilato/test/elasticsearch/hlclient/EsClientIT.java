@@ -40,8 +40,8 @@ import co.elastic.clients.elasticsearch.sql.TranslateResponse;
 import co.elastic.clients.elasticsearch.transform.GetTransformResponse;
 import co.elastic.clients.elasticsearch.transform.PutTransformResponse;
 import co.elastic.clients.json.JsonData;
-import co.elastic.clients.transport.TransportException;
 import co.elastic.clients.transport.endpoints.BinaryResponse;
+import co.elastic.clients.transport.endpoints.TextResponse;
 import co.elastic.clients.util.BinaryData;
 import co.elastic.clients.util.ContentType;
 import co.elastic.clients.util.NamedValue;
@@ -82,17 +82,18 @@ class EsClientIT {
     private static ElasticsearchAsyncClient asyncClient = null;
     private static final String PASSWORD = "changeme";
     private static final String PREFIX = "esclientit_";
+    private static String elasticsearchVersion;
 
     @BeforeAll
-    static void startOptionallyTestContainers() throws IOException {
+    static void startElasticsearchContainer() throws IOException {
         final var props = new Properties();
         props.load(EsClientIT.class.getResourceAsStream("/version.properties"));
-        final String version = props.getProperty("elasticsearch.version");
+        elasticsearchVersion = props.getProperty("elasticsearch.version");
         logger.info("Starting testcontainers with Elasticsearch {}.", props.getProperty("elasticsearch.version"));
         // Start the container. This step might take some time...
         final ElasticsearchContainer container = new ElasticsearchContainer(
                 DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
-                        .withTag(version))
+                        .withTag(elasticsearchVersion))
                 .withPassword(PASSWORD)
                 .withReuse(true);
         container.start();
@@ -1025,13 +1026,17 @@ class EsClientIT {
         }
     }
 
-    /**
-     * This one is failing for now. So we are expecting a failure.
-     * When updating to 8.15.1, it should fix it. (<a href="https://github.com/elastic/elasticsearch-java/issues/865">865</a>)
-     */
     @Test
-    void callHotThreads() {
-        assertThatThrownBy(() -> client.nodes().hotThreads()).isInstanceOf(TransportException.class);
+    void callHotThreads() throws IOException {
+        TextResponse textResponse = client.nodes().hotThreads();
+        assertThat(textResponse).isNotNull();
+        /* Response is something like:
+        ::: {71f9f45241a7}{pyRlgV_ATriPB3F6mE9p0w}{ZgfiKVLXQfGe8fWK-tL6LQ}{71f9f45241a7}{172.17.0.5}{172.17.0.5:9300}{cdfhilmrstw}{9.2.4}{8000099-9039003}{ml.allocated_processors=12, ml.allocated_processors_double=12.0, ml.max_jvm_size=2147483648, ml.config_version=12.0.0, xpack.installed=true, transform.config_version=10.0.0, ml.machine_memory=16748077056}
+           Hot threads at 2026-02-04T11:56:58.259Z, interval=500ms, busiestThreads=3, ignoreIdleThreads=true:
+         */
+        assertThat(textResponse.value())
+                .contains("Hot threads")
+                .contains(elasticsearchVersion);
     }
 
     @Test
