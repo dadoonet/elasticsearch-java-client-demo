@@ -13,7 +13,7 @@ You're welcome to contribute your own examples if you'd like.
 
 This repository is tested with:
 
-* **Elasticsearch Server 9.3.2**
+* **Elasticsearch Server 9.3.3**
 * **Elasticsearch Java API Client 9.3.3**
 
 We automatically start a Docker image using the [Elasticsearch module for TestContainers](https://www.testcontainers.org/modules/elasticsearch/).
