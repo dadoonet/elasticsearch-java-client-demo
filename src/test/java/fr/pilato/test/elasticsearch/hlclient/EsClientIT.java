@@ -972,10 +972,10 @@ class EsClientIT {
         {
             // Using the Raw ES|QL API
             try (final BinaryResponse response = client.esql().query(q -> q.query(query)); InputStream is = response.content()) {
-                // The response object is {"took":221,"is_partial":false,"completion_time_in_millis":1770203889851,"documents_found":1,"values_loaded":1,"start_time_in_millis":1770203889630,"expiration_time_in_millis":1770635889773,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
+                // The response object is {"took":6,"is_partial":false,"completion_time_in_millis":1786952355420,"documents_found":1,"values_loaded":1,"rows_emitted":7,"bytes_read":0,"read_nanos":0,"cpu_nanos":693792,"start_time_in_millis":1786952355414,"expiration_time_in_millis":1787384355371,"columns":[{"name":"name","type":"text"}],"values":[["David"]]}
                 final ObjectMapper mapper = new ObjectMapper();
                 final JsonNode jsonNode = mapper.readTree(is);
-                assertThat(jsonNode).isNotNull().hasSize(9);
+                assertThat(jsonNode).isNotNull().hasSize(13);
                 assertThat(jsonNode.get("columns")).isNotNull().hasSize(1).first().satisfies(column -> assertThat(column.get("name").asText()).isEqualTo("name"));
                 assertThat(jsonNode.get("values")).isNotNull().hasSize(1).first().satisfies(value -> assertThat(value).hasSize(1).first().satisfies(singleValue -> assertThat(singleValue.asText()).isEqualTo("David")));
                 assertThat(jsonNode.get("took").asInt()).isGreaterThan(0);
@@ -986,6 +986,11 @@ class EsClientIT {
                 assertThat(jsonNode.get("completion_time_in_millis").asLong()).isGreaterThan(0);
                 assertThat(jsonNode.get("start_time_in_millis").asLong()).isGreaterThan(0);
                 assertThat(jsonNode.get("expiration_time_in_millis").asLong()).isGreaterThan(0);
+                // Added in 9.5.0
+                assertThat(jsonNode.get("rows_emitted").asLong()).isEqualTo(7);
+                assertThat(jsonNode.get("bytes_read").asLong()).isGreaterThanOrEqualTo(0);
+                assertThat(jsonNode.get("read_nanos").asLong()).isGreaterThanOrEqualTo(0);
+                assertThat(jsonNode.get("cpu_nanos").asLong()).isGreaterThanOrEqualTo(0);
             }
         }
 
@@ -1099,7 +1104,7 @@ class EsClientIT {
 
         assumeNotNull(response.hits().total());
         assertThat(response.hits().total().value()).isEqualTo(1);
-        assertThat(response.hits().hits().get(0).score()).isEqualTo(0.4063275);
+        assertThat(response.hits().hits().get(0).score()).isEqualTo(0.40630677);
     }
 
     @Test
