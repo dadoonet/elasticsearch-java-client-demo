@@ -73,7 +73,7 @@ import java.util.random.RandomGenerator;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCaCert;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createTrustAllCertsContext;
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.Assume.assumeNotNull;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class EsClientIT {
 
@@ -83,6 +83,7 @@ class EsClientIT {
     private static final String PASSWORD = "changeme";
     private static final String PREFIX = "esclientit_";
     private static String elasticsearchVersion;
+    private static String apiKey;
 
     @BeforeAll
     static void startElasticsearchContainer() throws IOException {
@@ -100,6 +101,14 @@ class EsClientIT {
         final byte[] certAsBytes = container.copyFileFromContainer(
                 "/usr/share/elasticsearch/config/certs/http_ca.crt",
                 InputStream::readAllBytes);
+        try (ElasticsearchClient bootstrap = ElasticsearchClient.of(b -> b
+                .host("https://" + container.getHttpHostAddress())
+                .sslContext(createContextFromCaCert(certAsBytes))
+                .usernameAndPassword("elastic", PASSWORD))) {
+            apiKey = bootstrap.security().createApiKey(k -> k.name("test-key")).encoded();
+            logger.info("Generated API key: {}.", apiKey);
+        }
+
         try {
             client = getClient("https://" + container.getHttpHostAddress(), certAsBytes);
             asyncClient = getAsyncClient("https://" + container.getHttpHostAddress(), certAsBytes);
@@ -107,8 +116,8 @@ class EsClientIT {
             logger.debug("No cluster is running yet at https://{}.", container.getHttpHostAddress());
         }
 
-        assumeNotNull(client);
-        assumeNotNull(asyncClient);
+        assumeTrue(client != null);
+        assumeTrue(asyncClient != null);
     }
 
     @AfterAll
@@ -126,7 +135,7 @@ class EsClientIT {
         final ElasticsearchClient client = ElasticsearchClient.of(b -> b
                 .host(elasticsearchServiceAddress)
                 .sslContext(certificate != null ? createContextFromCaCert(certificate) : createTrustAllCertsContext())
-                .usernameAndPassword("elastic", PASSWORD)
+                .apiKey(apiKey)
         );
         final InfoResponse info = client.info();
         logger.info("Client connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
@@ -138,7 +147,7 @@ class EsClientIT {
         final ElasticsearchAsyncClient client = ElasticsearchAsyncClient.of(b -> b
                 .host(elasticsearchServiceAddress)
                 .sslContext(certificate != null ? createContextFromCaCert(certificate) : createTrustAllCertsContext())
-                .usernameAndPassword("elastic", PASSWORD)
+                .apiKey(apiKey)
         );
         final InfoResponse info = client.info().get();
         logger.info("Async Client connected to a cluster running version {} at {}.", info.version().number(), elasticsearchServiceAddress);
@@ -1102,7 +1111,7 @@ class EsClientIT {
                 ))
         , Void.class);
 
-        assumeNotNull(response.hits().total());
+        assumeTrue(response.hits().total() != null);
         assertThat(response.hits().total().value()).isEqualTo(1);
         assertThat(response.hits().hits().get(0).score()).isEqualTo(0.40630677);
     }
