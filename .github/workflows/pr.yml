@@ -13,10 +13,10 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           token: ${{ secrets.PAT }}
-      - name: Set up JDK 17 and Maven Central Repository
+      - name: Set up JDK 21 and Maven Central Repository
         uses: actions/setup-java@v5
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'adopt'
           cache: 'maven'
       - name: Update resources with Maven
