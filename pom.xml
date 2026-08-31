@@ -17,6 +17,7 @@
         <slf4j.version>2.0.18</slf4j.version>
         <junit.version>6.1.3</junit.version>
         <testcontainers.version>2.0.5</testcontainers.version>
+        <randomizedtesting.version>0.3.0</randomizedtesting.version>
 
         <!-- JDK -->
         <java.compiler.version>17</java.compiler.version>
@@ -123,6 +124,15 @@
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <version>3.27.7</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Randomized Testing -->
+        <dependency>
+            <groupId>com.carrotsearch.randomizedtesting</groupId>
+            <artifactId>randomizedtesting-jupiter</artifactId>
+            <version>${randomizedtesting.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <!-- Logging dependencies -->

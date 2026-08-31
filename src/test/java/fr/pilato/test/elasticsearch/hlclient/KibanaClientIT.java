@@ -21,6 +21,9 @@ package fr.pilato.test.elasticsearch.hlclient;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
+import com.carrotsearch.randomizedtesting.jupiter.Randomized;
+import com.carrotsearch.randomizedtesting.jupiter.generators.RandomNumbers;
+import com.carrotsearch.randomizedtesting.jupiter.generators.RandomStrings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.*;
@@ -41,6 +44,7 @@ import java.util.*;
 import static fr.pilato.test.elasticsearch.hlclient.SSLUtils.createContextFromCaCert;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Randomized
 class KibanaClientIT {
 
     private static final Logger logger = LogManager.getLogger();
@@ -52,6 +56,7 @@ class KibanaClientIT {
             .encodeToString(("elastic:" + PASSWORD).getBytes(StandardCharsets.UTF_8));
     private static String kibanaUrl;
     private String indexName;
+    private Random random;
 
     @BeforeAll
     static void startElasticsearchContainer() throws IOException, InterruptedException {
@@ -97,7 +102,8 @@ class KibanaClientIT {
     }
 
     @BeforeEach
-    void cleanIndexBeforeRun(final TestInfo testInfo) {
+    void cleanIndexBeforeRun(final TestInfo testInfo, final Random random) {
+        this.random = random;
         final var methodName = testInfo.getTestMethod().orElseThrow().getName();
         indexName = PREFIX + methodName.toLowerCase(Locale.ROOT);
 
@@ -108,15 +114,16 @@ class KibanaClientIT {
     @Test
     void testCreateDataAndDashboard() throws IOException, InterruptedException {
         // We generate some data in Elasticsearch to be able to create a dashboard in Kibana
-        final var p1 = new Person();
-        p1.setId("1");
-        p1.setName("Foo");
-        final var p2 = new Person();
-        p2.setId("2");
-        p2.setName("Bar");
-        elasticsearchClient.index(ir -> ir.index(indexName).id(p1.getId()).document(p1));
-        elasticsearchClient.index(ir -> ir.index(indexName).id(p2.getId()).document(p2));
+        final int size = randomInt(2, 10);
+        final var persons = randomPersons(size);
+        for (final Person person : persons) {
+            elasticsearchClient.index(ir -> ir.index(indexName).id(person.getId()).document(person));
+        }
         elasticsearchClient.indices().refresh(rr -> rr.index(indexName));
+
+        final String dataViewName = randomToken();
+        final String dashboardTitle = "Person dashboard " + randomToken();
+        final String metricTitle = randomToken() + " count";
 
         // Create a data view if missing (no time field — Person has none)
         if (kibana("GET", "/api/data_views/data_view/" + indexName, null).statusCode() == 404) {
@@ -128,26 +135,26 @@ class KibanaClientIT {
                         "name": "%s"
                       }
                     }
-                    """.formatted(indexName, indexName, indexName));
+                    """.formatted(indexName, indexName, dataViewName));
             assertThat(dataViewResponse.statusCode()).as(dataViewResponse.body()).isEqualTo(200);
         }
 
         // Markdown + document count, then upsert via PUT /api/dashboards/{id}
         final var dashboardResponse = kibana("PUT", "/api/dashboards/" + indexName, """
                 {
-                  "title": "Person dashboard",
+                  "title": "%s",
                   "panels": [
                     {
                       "type": "markdown",
                       "grid": { "x": 0, "y": 0, "w": 24, "h": 8 },
-                      "config": { "content": "# Person dashboard\\n\\nTwo documents indexed for this IT." }
+                      "config": { "content": "# %s\\n\\n%d documents indexed for this IT." }
                     },
                     {
                       "type": "vis",
                       "grid": { "x": 24, "y": 0, "w": 24, "h": 8 },
                       "config": {
                         "type": "metric",
-                        "title": "Document count",
+                        "title": "%s",
                         "data_source": {
                           "type": "esql",
                           "query": "FROM %s | STATS count = COUNT()"
@@ -157,12 +164,43 @@ class KibanaClientIT {
                     }
                   ]
                 }
-                """.formatted(indexName));
+                """.formatted(dashboardTitle, dashboardTitle, size, metricTitle, indexName));
         assertThat(dashboardResponse.statusCode()).as(dashboardResponse.body()).isIn(200, 201);
-        assertThat(dashboardResponse.body()).contains("Person dashboard");
+        assertThat(dashboardResponse.body()).contains(dashboardTitle);
         logger.info("Dashboard available at {}/app/dashboards#/view/{}", kibanaUrl, indexName);
 
         logger.info("You can add a breakpoint on this line and then open Kibana.");
+    }
+
+    private String randomId() {
+        return RandomStrings.randomAsciiAlphanumOfLengthBetween(random, 4, 8);
+    }
+
+    private String randomToken() {
+        return RandomStrings.randomAsciiAlphanumOfLengthBetween(random, 3, 10).toLowerCase(Locale.ROOT);
+    }
+
+    private int randomInt(final int min, final int max) {
+        return RandomNumbers.randomIntInRange(random, min, max);
+    }
+
+    private Person randomPerson() {
+        final var person = new Person();
+        person.setId(randomId());
+        person.setName(randomToken());
+        return person;
+    }
+
+    private List<Person> randomPersons(final int count) {
+        final var persons = new ArrayList<Person>();
+        while (persons.size() < count) {
+            final var candidate = randomPerson();
+            if (persons.stream().noneMatch(p -> p.getId().equals(candidate.getId())
+                    || p.getName().equals(candidate.getName()))) {
+                persons.add(candidate);
+            }
+        }
+        return persons;
     }
 
     private static HttpResponse<String> kibana(final String method, final String path, final String json)
