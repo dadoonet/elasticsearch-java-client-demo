@@ -24,6 +24,7 @@ import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.*;
+import org.testcontainers.containers.Network;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.elasticsearch.KibanaContainer;
 import org.testcontainers.utility.DockerImageName;
@@ -58,14 +59,22 @@ class KibanaClientIT {
         props.load(KibanaClientIT.class.getResourceAsStream("/version.properties"));
         String elasticsearchVersion = props.getProperty("elasticsearch.version");
         logger.info("Starting testcontainers with Elasticsearch/Kibana {}.", elasticsearchVersion);
-        // Start the containers. This step might take some time...
-        final ElasticsearchContainer elasticsearchContainer = new ElasticsearchContainer(
+        // Same network from the start so ES stays reachable on localhost after Kibana starts (CI).
+        final var network = Network.newNetwork();
+        ElasticsearchContainer elasticsearchContainer = new ElasticsearchContainer(
                 DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch")
                         .withTag(elasticsearchVersion))
-                .withPassword(PASSWORD)
-                .withReuse(true);
-        final KibanaContainer kibanaContainer = new KibanaContainer(elasticsearchContainer);
-                // .withReuse(true); // This does not seem to work until now
+                .withNetwork(network)
+                .withPassword(PASSWORD);
+                // this does not work yet. Wait for TC 2.0.6 to be released.
+                // See https://github.com/testcontainers/testcontainers-java/pull/11986
+                // .withReuse(true);
+        KibanaContainer kibanaContainer = new KibanaContainer(elasticsearchContainer)
+                .withNetwork(network);
+                // this does not work yet. Wait for TC 2.0.6 to be released.
+                // See https://github.com/testcontainers/testcontainers-java/pull/11986
+                // .withReuse(true);
+        elasticsearchContainer.start();
         kibanaContainer.start();
 
         // Create the Elasticsearch client
@@ -76,6 +85,7 @@ class KibanaClientIT {
                 .host("https://" + elasticsearchContainer.getHttpHostAddress())
                 .sslContext(createContextFromCaCert(certAsBytes))
                 .usernameAndPassword("elastic", PASSWORD));
+        logger.info("Elasticsearch started at https://{}.", elasticsearchContainer.getHttpHostAddress());
 
         // Create the Kibana client
         kibanaUrl = "http://" + kibanaContainer.getHttpHostAddress();
