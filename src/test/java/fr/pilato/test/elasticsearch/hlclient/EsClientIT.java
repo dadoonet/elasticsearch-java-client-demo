@@ -667,6 +667,8 @@ class EsClientIT {
             assertThat(indicesRecord.docsCount()).isNotNull();
             assertThat(indicesRecord.docsDeleted()).isNotNull();
         });
+        // CI starts a fresh cluster; system indices (deprecation logs, …) can still be INITIALIZING.
+        client.cluster().health(h -> h.waitForNoInitializingShards(true).timeout(t -> t.time("30s")));
         final ShardsResponse shards = client.cat().shards();
         assertThat(shards).isNotNull();
         assertThat(shards.shards()).allSatisfy(shardsRecord -> {
